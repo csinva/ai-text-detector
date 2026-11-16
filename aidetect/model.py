@@ -79,6 +79,7 @@ class Detector(nn.Module):
         self.doc_head = nn.Linear(c.dim, 1)
         self.register_buffer("cos", torch.zeros(1), persistent=False); self.register_buffer("sin", torch.zeros(1), persistent=False)
         self.attn_impl = "flash"
+        self.attn_store = None
 
     def init_rope(self, device):
         cos, sin = rope_tables(self.c, device)
@@ -98,11 +99,14 @@ class Detector(nn.Module):
         for a, b in zip(cl[:-1], cl[1:]):
             qs, ks, vs = (t[a:b].transpose(0, 1) for t in (q, k, v))
             ks, vs = ks.repeat_interleave(rep, 0), vs.repeat_interleave(rep, 0)
+            if self.attn_store is not None:  # explanation mode: keep the head-averaged attention matrix of this layer (T x T)
+                w = torch.softmax(qs @ ks.transpose(-1, -2) / qs.shape[-1] ** 0.5, -1)
+                self.attn_store.append(w.mean(0).detach())
             outs.append(F.scaled_dot_product_attention(qs[None], ks[None], vs[None], is_causal=self.c.causal)[0].transpose(0, 1))
         return torch.cat(outs, 0)
 
-    def hidden(self, ids, pos, cu, max_s):
-        x = self.embed(ids)
+    def hidden(self, ids, pos, cu, max_s, embeds=None):
+        x = self.embed(ids) if embeds is None else embeds  # embeds: (T, dim) input embeddings, used by integrated gradients
         if torch.is_autocast_enabled():  # bf16 residual stream under autocast (also keeps the compiled fused residual adds in one dtype)
             x = x.to(torch.get_autocast_gpu_dtype())
         cos, sin = self.cos[pos], self.sin[pos]
@@ -119,8 +123,8 @@ class Detector(nn.Module):
         doc = self.doc_head((s / n.clamp(min=1)[:, None]).to(h.dtype)).squeeze(-1).float()
         return tok, doc
 
-    def forward(self, ids, pos, cu, seg, max_s, nseq):
-        return self.heads(self.hidden(ids, pos, cu, max_s), seg, nseq)
+    def forward(self, ids, pos, cu, seg, max_s, nseq, embeds=None):
+        return self.heads(self.hidden(ids, pos, cu, max_s, embeds), seg, nseq)
 
     @torch.no_grad()
     def load_nano(self, path="/data/new/prod_models/voyage-4-nano/model.safetensors"):

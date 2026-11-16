@@ -9,6 +9,7 @@ export V45_DATA_ROOT=/data18/voyage_4_5_experiments
 M=$V45_DATA_ROOT/data/aidetect/runs/final_v2/model.pt          # fp32 weights, 1.4 GB (the frozen embedding table is most of it)
 ~/voyage-4.5/.venv-aid/bin/python aidetect/predict.py --model $M --file doc.txt --html heat.html --json out.json            # CPU, fp32
 ~/voyage-4.5/.venv-aid/bin/python aidetect/predict.py --model $M --file doc.txt --quant 2 --html heat.html                  # CPU, int8 (about 2x faster, same scores)
+~/voyage-4.5/.venv-aid/bin/python aidetect/predict.py --model $M --file doc.txt --explain --html heat.html                   # adds feature-importance and attention views (fp32, a few seconds)
 ```
 
 ```python
@@ -18,6 +19,8 @@ p = Predictor(M, device="cpu", quant=2)       # device="cuda" for GPU; quant: 0 
 r = p.predict([text])[0]
 r["doc_prob"]                                  # P(AI-generated) for the whole text
 r["words"]                                     # [(start_char, end_char, P(AI)), ...] for each whitespace-delimited word
+ex = p.explain(text)                           # fp32 only (quant=0): ex["ig"] integrated gradients of the document logit per word (+ pushes toward AI), ex["attn"] attention rollout
+# heatmap.render_page(text, r, ex) -> HTML with tabs: AI probability / Feature importance / Attention
 ```
 
 Texts longer than 1,024 tokens are scored in 1,024-token windows. Calibration differs between domains (see the report, Sec. 4); pick the threshold on human text from your domain rather than relying on 0.5.
@@ -34,7 +37,8 @@ Texts longer than 1,024 tokens are scored in 1,024-token windows. Calibration di
 | `05_baselines.py` | open-source detectors on the same sets |
 | `06_cpu_bench.py` | CPU latency |
 | `09_report.py` | builds the report |
-| `model.py`, `infer.py`, `predict.py` | model, windowed inference with word aggregation, CLI |
+| `model.py`, `infer.py`, `predict.py` | model, windowed inference with word aggregation, explanations (integrated gradients, attention rollout), CLI |
+| `heatmap.py` | HTML renderer (score meter, document map, tabbed views) |
 | `*.slurm` | one-GPU jobs (`train_eval.slurm`, `run.slurm`), CPU jobs (`cpu.slurm`, `cpu_eval.slurm`) |
 
 Environment: `uv venv .venv-aid` with torch 2.8.0, transformers 4.51.3, flash-attn 2.8.3, tokenizers, pandas, pyarrow, scikit-learn. FlashAttention-3 (`flash_attn_interface`, `flash_attn_3`) is copied from the bxjg venv.

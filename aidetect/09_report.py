@@ -137,17 +137,18 @@ def figs(model_path):
     for i, r in enumerate(mixed.itertuples()):
         t = r.text[:1500]
         sps = [(s, min(e, 1500)) for s, e in r.spans if s < 1500]
-        items.append((f"Mixed document from the Heterogeneous AI Spans test set (AI spans written by {r.model}); underline = true AI words", t, sps))
+        items.append((f"Mixed document from the Heterogeneous AI Spans test set (AI spans written by {r.model})", t, sps))
     ai = ts[(ts.label == 1)].sample(2, random_state=1)
     for r in ai.itertuples():
         items.append((f"TextSight 2026 AI passage ({r.model}), fully AI-written", r.text, [(0, len(r.text))]))
     hu = ts[(ts.label == 0)].sample(1, random_state=2)
     for r in hu.itertuples():
         items.append((f"TextSight 2026 human passage ({r.grp if r.grp != 'textsight_2026' else r.model})", r.text, []))
+    from heatmap import render_card
     preds = P.predict([t for _, t, _ in items])
     html_ = ""
     for k, ((title, t, sps), pr) in enumerate(zip(items, preds)):
-        html_ += f'<div class=hm><div class=hmt>{html.escape(title)}: <b>P(AI) = {100 * pr["doc_prob"]:.1f}%</b>, mean word probability {100 * np.mean([w[2] for w in pr["words"]]):.0f}%</div><div class=hmb>{heat(t, pr["words"], sps)}</div></div>'
+        html_ += render_card(t, pr, P.explain(t, steps=64), title=title, truth=sps, uid=f"fig1_{k}")
     return html_
 
 
@@ -264,6 +265,8 @@ CSS = """<style>.pos{color:var(--accent)} .neg{color:var(--bad)} .wide{overflow-
 .hm{margin:1rem 0;border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem} .hmt{font-size:.85rem;color:var(--text-2);margin-bottom:.4rem} .hmb{font-family:Georgia,serif;font-size:.92rem;line-height:1.75;white-space:pre-wrap}
 table{border-collapse:collapse;font-size:.85rem;margin:.6rem 0} th,td{border:1px solid var(--border);padding:.25rem .5rem;text-align:left;vertical-align:top} caption{margin-bottom:.3rem;font-size:.85rem;color:var(--text-2)}
 .legend span{display:inline-block;padding:0 .5rem;margin-right:.2rem;font-size:.8rem}</style>"""
+import heatmap
+CSS = CSS.replace("</style>", heatmap.CSS + "</style>")
 
 
 def main():
@@ -310,7 +313,12 @@ def main():
     A("<p>Source-domain balance matters for calibration. In the first version (v1) human and AI texts were balanced only over the whole M4GT and MAGE samples, so a domain with few human texts (OUTFOX student essays: 2,106 human against 37,986 AI essays) taught the model that essay style means AI. v2 balances inside every domain:</p>"); A(tab_v1())
     A("<h2 id=sec-5>5. Word-level results</h2>"); A(tab_word())
     A("<p>Boundary error uses the maximum likelihood split of the word probabilities into human then AI words, the setting of SemEval-2024 8C. RoFT texts are short (about 10 sentences) and human annotators score poorly on them, so low numbers there are expected.</p>")
-    A("<h3 id=fig-1>Figure 1. Word heatmaps</h3><p class=legend>Background opacity = P(AI) of the word; blue underline = word is inside a true AI span.</p>")
+    A("""<h3 id=sec-5-1>5.1 How the heatmaps are produced</h3><p>Each card in Figure <a href='#fig-1'>1</a> has three views of the same text. Words are whitespace-delimited strings; a word's value is taken over the tokens that end inside it.</p><ul>
+<li><b>AI probability</b> is the supervised token head: a linear layer on every final hidden state, trained to output the share of the token's characters that lie in AI-written spans. It localizes AI-written text; it is an output of the classifier, not an explanation of the document score. The word value is the mean over its tokens.</li>
+<li><b>Feature importance</b> is integrated gradients of the document logit with respect to the input embeddings: 64 midpoint steps (32 by default in predict.py) from a baseline text to the real text, gradient times embedding difference, summed over embedding dimensions and over the tokens of a word. Rose words raise the AI score, blue words lower it. The baseline is the end-of-text token at every position (a zero baseline converged poorly, completeness gaps of several logits, because RMSNorm amplifies near-zero inputs). That baseline reads as AI (+6.7 logits for a short test text), so values are relative to it and most words of human-looking text are blue. The attributions sum to the logit difference between the text and the baseline; the residual ("completeness gap") is printed under each view and was at most 0.07 logits in the examples.</li>
+<li><b>Attention</b> is attention rollout: per layer, the head-averaged attention matrix is mixed with the identity (residual connection) and the 12 layers are multiplied; the value is the column mean times the number of tokens, so 1.0 means uniform. It shows where the representation draws its information from, not whether a word pushes toward AI or human, and it is not a causal explanation.</li></ul>
+<p>The document logit is a linear function of the mean of the final hidden states, so for a mixed text it estimates the AI share and integrated gradients explain that estimate. Explanations cost one forward and backward pass per step (seconds on one CPU for a few hundred tokens), use the fp32 model, and cover the first 1,024 tokens. Only the probability view has ground truth (dotted underline); the importance and attention views are checked by completeness only.</p>""")
+    A("<h3 id=fig-1>Figure 1. Word heatmaps (click the tabs)</h3>")
     A(figs(f"{R}/{a.final}/model.pt"))
     A("<h2 id=sec-6>6. CPU inference</h2>"); A(tab_cpu()); A(int8_table())
     A("<p>Quantizing the MLP down projections as well (all linear layers) was no faster in a direct test (0.37 against 0.39 s per document, 8 threads, 300 RAID documents; <code>aidetect/diag_quant.py</code>) and moved the document logit by +3.8 on average (AUROC 99.98 to 99.25, false positive rate at 0.5 from 1.3% to 45%), probably because of outlier activations at the down projection input. Keeping those layers and the heads in fp32 leaves the logit within 0.03 on average (correlation 0.999).</p>")
