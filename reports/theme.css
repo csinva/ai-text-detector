@@ -1,0 +1,273 @@
+/* Shared LIGHT theme for all reports in reports/. Single source of truth.
+   Loaded via <link rel="stylesheet" href="theme.css">. Forced light (no media query).
+
+   Every colour below was checked with src/util/validate_palette.py rather than eyeballed. Text
+   tokens clear WCAG AA on white (text-1 18.5:1, text-2 10.9:1, text-3 5.4:1, accent 6.3:1,
+   good 5.5:1, bad 5.4:1); --bar is a fill, not text, and clears the 3:1 UI threshold at 3.6:1.
+   The categorical data colours are unchanged from the dark theme because they already pass the
+   validator in light mode (lightness band, chroma floor, CVD and contrast all PASS). */
+:root {
+  --surface-0:#ffffff; --surface-1:#f7f7f5; --surface-2:#ecece7; --border:#d8d8d2;
+  --text-1:#14140f; --text-2:#3d3d38; --text-3:#6b6b64;
+  --bar:#3987e5; --track:#e8e8e2; --accent:#1b5fb0; --callout:#eef4fd;
+  --good:#0a7a0a; --bad:#c0392b; --warn:#fdf6e3; --warn-border:#e0cf9a;
+  --code-bg:#f4f4f0; --radius:8px;
+}
+* { box-sizing:border-box; }
+body {
+  font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text-1); background:var(--surface-0);
+  max-width:1000px; margin:0 auto; padding:2rem 1.25rem 4rem;
+}
+h1 { font-size:1.7rem; margin:0 0 .25rem; letter-spacing:-.01em; }
+h2 { font-size:1.2rem; margin:2.2rem 0 .8rem; padding-bottom:.35rem; border-bottom:1px solid var(--border); }
+h3 { font-size:1rem; margin:1.4rem 0 .4rem; }
+p { color:var(--text-2); max-width:74ch; }
+header p, p.lead { color:var(--text-2); max-width:74ch; }
+a { color:var(--accent); }
+code { font-family:ui-monospace,Menlo,monospace; font-size:.85em; background:var(--code-bg);
+  border:1px solid var(--border); border-radius:4px; padding:.05em .35em; }
+pre, pre.prompt { background:var(--code-bg); border:1px solid var(--border); border-radius:var(--radius);
+  padding:1rem 1.1rem; white-space:pre-wrap; overflow-wrap:anywhere;
+  font-family:ui-monospace,Menlo,monospace; font-size:.8rem; line-height:1.5; color:var(--text-2); }
+
+/* tables (reports 01/02/03/04). 02/04 are numeric: right-aligned, left first column. */
+table { border-collapse:collapse; width:100%; font-size:.86rem; background:var(--surface-1);
+  border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin:.6rem 0; }
+th,td { text-align:right; padding:.5rem .7rem; border-bottom:1px solid var(--border); }
+th:first-child,td:first-child { text-align:left; }
+th { color:var(--text-2); font-weight:600; background:var(--surface-0); }
+tr:last-child td { border-bottom:none; }
+tr.hlrow td { background:var(--callout); font-weight:600; }
+tr.excl td { color:var(--text-3); }
+
+/* stat tiles */
+.tiles { display:flex; flex-wrap:wrap; gap:.9rem; margin:1rem 0; }
+.tile { background:var(--surface-1); border:1px solid var(--border); border-radius:var(--radius);
+  padding:.85rem 1rem; min-width:120px; }
+.tile .num { font-size:1.5rem; font-weight:650; letter-spacing:-.02em; line-height:1.1; }
+.tile .lbl, .tile .lab { color:var(--text-2); font-size:.82rem; margin-top:.2rem; }
+.tile.hl { border-color:var(--good); }
+
+/* callout / warning */
+.callout { background:var(--callout); border:1px solid var(--border); border-radius:var(--radius);
+  padding:1rem 1.15rem; margin:1rem 0; }
+.callout h2 { border:none; margin:0 0 .5rem; }
+.warn { background:var(--warn); border:1px solid var(--warn-border); border-radius:var(--radius);
+  padding:1rem 1.15rem; margin:1rem 0; }
+.win { color:var(--accent); font-weight:600; }
+.muted, .note { color:var(--text-2); }
+.note { font-size:.9rem; }
+
+/* horizontal bar rows (reports 01 figures + 02/03 .row) */
+.bars { display:grid; grid-template-columns:minmax(9rem,auto) 1fr auto; gap:.38rem .7rem; align-items:center; }
+.bars .cat { color:var(--text-2); font-size:.82rem; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bars .track { background:var(--track); border-radius:4px; height:14px; overflow:hidden; }
+.bars .fill { background:var(--bar); height:100%; border-radius:4px; min-width:2px; }
+.bars .val { font-variant-numeric:tabular-nums; font-size:.8rem; white-space:nowrap; }
+.row { display:grid; grid-template-columns:230px 1fr 150px; align-items:center; gap:10px; margin:3px 0; }
+.row .k { font-size:13px; text-align:right; color:var(--text-2); }
+.row .v { font-size:13px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+
+/* figures + two-column layout (report 01) */
+.two { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+@media (max-width:720px){ .two{ grid-template-columns:1fr; } .qd{ grid-template-columns:1fr; } }
+figure { margin:0 0 1rem; background:var(--surface-1); border:1px solid var(--border);
+  border-radius:var(--radius); padding:1rem 1.1rem 1.1rem; }
+figcaption { font-size:.95rem; font-weight:600; margin-bottom:.1rem; }
+figure .sub { color:var(--text-3); font-size:.8rem; margin-bottom:.85rem; }
+
+/* status badges + project cards (report 01) */
+.ex { color:var(--bad); font-weight:600; font-size:.8rem; }
+.ok { color:var(--good); font-weight:600; font-size:.8rem; }
+.proj { background:var(--surface-1); border:1px solid var(--border); border-radius:var(--radius); padding:.7rem .95rem; margin-bottom:.7rem; }
+.proj .ph { font-size:.92rem; margin-bottom:.15rem; }
+.proj .pm { color:var(--text-3); font-size:.78rem; margin:0 0 .5rem; }
+.qd { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+.qdh { font-size:.75rem; font-weight:600; color:var(--text-2); text-transform:uppercase; letter-spacing:.03em; margin-bottom:.2rem; }
+.qd ul { margin:0; padding-left:1rem; }
+.qd li { font-size:.82rem; margin:.25rem 0; word-break:break-word; }
+footer { margin-top:3rem; padding-top:1rem; border-top:1px solid var(--border); color:var(--text-2); font-size:.9rem; }
+
+/* legend + swatches (reports 02/03) */
+.legend { display:flex; align-items:center; gap:3px; font-size:13px; color:var(--text-2); margin:6px 0; }
+.legend i { width:20px; height:12px; display:inline-block; border-radius:2px; }
+.sw { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:middle; margin:0 4px 0 12px; }
+
+/* funnel table (report 02) */
+table.funnel { border-collapse:collapse; margin:6px 0 12px; width:100%; max-width:780px; background:none; border:none; }
+.funnel td { padding:3px 8px; font-size:13px; vertical-align:middle; border:none; }
+.funnel .fl { color:var(--text-2); width:360px; }
+.funnel .fn { text-align:right; color:var(--text-1); font-variant-numeric:tabular-nums; width:120px; }
+
+/* relevance heatmap (report 02) */
+table.hm { border-collapse:separate; border-spacing:2px; margin:8px 0; background:none; border:none; width:auto; }
+.hm th,.hm td { padding:0; font-size:11px; border:none; }
+.hm th.qry { width:150px; font-weight:600; text-align:left; vertical-align:top; background:var(--surface-1); color:var(--text-1); border-radius:6px; padding:5px; }
+.hm th.qry .prev { font-weight:400; color:var(--text-2); font-size:10px; line-height:1.25; max-height:26px; overflow:hidden; }
+.hm th.rank { color:var(--text-2); font-weight:500; font-size:10px; width:22px; background:none; }
+.hm td.cell { width:22px; height:22px; text-align:center; font-weight:600; border-radius:3px;
+  cursor:default;
+  /* On white, the palest end of the sequential ramp is nearly the page colour, so without an
+     outline a low-score cell reads as a gap rather than as a cell. */
+  box-shadow:inset 0 0 0 1px var(--border); }
+.ds { border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin:16px 0; background:var(--surface-1); }
+.ds .meta { font-size:12px; color:var(--text-2); margin-bottom:6px; }
+#tip { position:fixed; z-index:9; max-width:380px; background:#1a1a19; color:#ffffff; padding:9px 11px;
+  border:1px solid var(--border); border-radius:7px; font-size:12px; line-height:1.45;
+  white-space:pre-wrap; display:none; pointer-events:none; box-shadow:0 4px 18px rgba(0,0,0,.5); }
+
+/* model-ablation qualitative trace cards (report 03) */
+.tcard { background:var(--surface-1); border:1px solid var(--border); border-radius:var(--radius);
+  padding:.85rem 1.05rem; margin:.8rem 0; }
+.tcard .th { font-size:.92rem; font-weight:600; margin-bottom:.35rem; }
+.tcard .scores { color:var(--accent); }
+.tcard .snip { color:var(--text-2); font-size:.82rem; margin:.15rem 0; overflow-wrap:anywhere; }
+.tcols { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-top:.5rem; }
+@media (max-width:720px){ .tcols{ grid-template-columns:1fr; } }
+.trace { background:var(--code-bg); border:1px solid var(--border); border-radius:6px;
+  padding:.55rem .75rem; white-space:pre-wrap; overflow-wrap:anywhere;
+  font-family:ui-monospace,Menlo,monospace; font-size:.75rem; line-height:1.45; color:var(--text-2); }
+.trace .tl { color:var(--text-3); font-size:.68rem; text-transform:uppercase; letter-spacing:.04em;
+  display:block; margin-bottom:.3rem; }
+h4 { font-size:.92rem; margin:1.1rem 0 .35rem; }
+
+/* index cards */
+a.card { display:block; text-decoration:none; color:inherit; border:1px solid var(--border);
+  border-radius:10px; padding:16px 20px; margin:14px 0; transition:border-color .15s,box-shadow .15s; }
+a.card:hover { border-color:var(--accent); box-shadow:0 2px 14px rgba(0,0,0,.4); }
+.card .t { font-size:18px; font-weight:600; color:var(--accent); }
+.card .f { font-size:12px; color:var(--text-2); font-family:ui-monospace,Menlo,monospace; margin:2px 0 8px; }
+.card .d { color:var(--text-1); margin:0 0 8px; }
+.card .h { color:var(--text-2); font-size:13px; }
+.card .h b { color:var(--text-1); }
+
+/* shared report header: back to index */
+.topnav { margin:0 0 1.4rem; padding-bottom:.7rem; border-bottom:1px solid var(--border);
+  font-size:.85rem; }
+.topnav a { color:var(--text-2); text-decoration:none; }
+.topnav a:hover { color:var(--accent); }
+
+/* Expandable detail. Used for material that supports a claim but is not needed to act on it:
+   full variant tables, failed-idea catalogs, mechanism digressions. Collapsed by default so the
+   main line of argument reads straight through. */
+details.more {
+  margin: 1em 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-1);
+}
+details.more > summary {
+  cursor: pointer;
+  padding: .6em .9em;
+  font-weight: 600;
+  color: var(--accent);
+  list-style: none;
+}
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::before { content: "▸ "; color: var(--text-3); }
+details.more[open] > summary::before { content: "▾ "; }
+details.more[open] > summary { border-bottom: 1px solid var(--border); }
+details.more > :not(summary) { padding: 0 .9em; }
+details.more > p:last-child, details.more > table:last-child { margin-bottom: .9em; }
+
+/* Table of contents. Two columns on wide screens so 19 sections stay one screenful and the
+   reader can see the whole shape of the report without scrolling past it. */
+nav.toc {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  padding: .8em 1em 1em;
+  margin: 1.4em 0;
+}
+nav.toc > b { color: var(--text-2); }
+nav.toc ol {
+  columns: 2;
+  column-gap: 2.2em;
+  margin: .5em 0 0;
+  padding-left: 1.4em;
+}
+nav.toc li { margin: .18em 0; break-inside: avoid; }
+nav.toc a { color: var(--accent); text-decoration: none; }
+nav.toc a:hover { text-decoration: underline; }
+@media (max-width: 720px) { nav.toc ol { columns: 1; } }
+
+/* Key figures. The SVGs carry their own viewBox and width=100%, so they scale to the column;
+   this only guarantees they are block-level with consistent spacing whether they sit directly in
+   the body or inside a collapsible. */
+svg.keyfig {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 1em 0 1.4em;
+}
+
+/* Whole sections folded to one line (the deep dives). The <h2> stays inside the <summary> so the
+   contents list still links to a real heading, so it needs its block margins removed and the
+   summary's own marker aligned against it. */
+details.sec > summary { padding: .35em .9em; }
+details.sec > summary > h2 {
+  display: inline;
+  font-size: 1.05rem;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+}
+details.sec { margin: .5em 0; }
+
+/* report 09: grouped table of contents and part dividers, for a report whose sections are
+   ordered by result rather than by chronology */
+.part { font-size:1.05rem; text-transform:uppercase; letter-spacing:.08em; color:var(--text-3);
+  border:none; margin:3rem 0 .2rem; padding:0; }
+.part + h2 { margin-top:.6rem; }
+nav.toc li.tocgroup { color:var(--text-3); margin-top:.35rem; }
+nav.toc li.tocgroup > ol { margin-top:.15rem; }
+
+/* report 10: the main scatter restated as a shaded table. Cells carry their own background from
+   a sequential ramp computed in src/10_03_report.py, so the rules here must not set one. */
+table.heat { border-collapse:separate; border-spacing:2px; width:auto; background:none; }
+.heat th { font-size:.78rem; padding:.3rem .5rem; vertical-align:bottom; }
+.heat td { padding:.3rem .5rem; border-bottom:none; font-variant-numeric:tabular-nums; }
+.heat td.mname { text-align:left; font-size:.82rem; white-space:nowrap; }
+.heat td.num { color:var(--text-2); font-size:.8rem; }
+.heat td.cell { text-align:center; font-weight:600; border-radius:3px; min-width:58px; }
+.heat td.blank { color:var(--text-3); text-align:center; background:var(--surface-2); border-radius:3px; }
+
+/* Separator between per-encoder blocks in the main results tables.
+   Those tables stack one block per encoder, each introduced by a full-width row whose only cell is
+   a bold model name (<td colspan=N class=note><b>voyage-4-nano</b> ...). The general sibling
+   combinator picks out every such row that is PRECEDED by another one, i.e. the second and later
+   blocks, so the line falls between encoders and not under the table header.
+
+   Done in CSS rather than in the table markup so it survives the generators being rewritten, and
+   so it applies to every report that uses the same block layout. tr.modelsep is honoured too, for
+   generators that would rather be explicit. */
+table tr:has(> td.note > b) ~ tr:has(> td.note > b) > td,
+table tr.modelsep > td {
+  border-top: 3px solid var(--text-2);
+}
+
+/* report 16: worked retrieval examples. One row per query: the query on the left, the ranked
+   results to its right, so a reader scans down queries and across ranks. Thumbnails are base64
+   data URIs, sized by the generator, so the rules here only lay them out. */
+.exrow { display:grid; grid-template-columns:200px 1fr; gap:1rem; align-items:start;
+  background:var(--surface-1); border:1px solid var(--border); border-radius:var(--radius);
+  padding:.8rem .9rem; margin:.7rem 0; }
+.exq img { max-width:100%; border-radius:6px; display:block; margin:.3rem 0; }
+.exkind { display:inline-block; font-size:.7rem; text-transform:uppercase; letter-spacing:.04em;
+  color:var(--accent); font-weight:600; }
+.extext { font-size:.8rem; color:var(--text-1); overflow-wrap:anywhere; }
+.exnote { font-size:.7rem; color:var(--text-3); margin-top:.35rem; }
+.exhits { display:flex; flex-wrap:wrap; gap:.6rem; }
+.exhit { margin:0; padding:0; background:none; border:none; width:128px; }
+.exhit img { width:128px; height:128px; object-fit:contain; background:var(--surface-2);
+  border:1px solid var(--border); border-radius:6px; display:block; }
+.exhit figcaption { font-size:.72rem; color:var(--text-2); font-variant-numeric:tabular-nums;
+  margin-top:.2rem; font-weight:600; }
+.excap { font-size:.66rem; color:var(--text-3); line-height:1.3; max-height:2.6em; overflow:hidden; }
+@media (max-width:720px){ .exrow{ grid-template-columns:1fr; } }
+
+/* numeric diffs against a reference: blue up, red down (report 16 section 8) */
+.pos { color:var(--accent); }
+.neg { color:var(--bad); }
