@@ -27,8 +27,8 @@ def windows(n, window):
     return [(s, s + window) for s in st]
 
 
-def token_to_word(text, offsets, tok_prob, reduce="mean"):
-    """per whitespace-delimited word: mean (probabilities) or sum (attributions) over its tokens. Returns [(start, end, value)]."""
+def token_to_word(text, offsets, tok_prob):
+    """mean token probability per whitespace-delimited word. Returns [(start, end, prob)]."""
     words = [(m.start(), m.end()) for m in WORD.finditer(text)]
     if not words:
         return []
@@ -42,8 +42,6 @@ def token_to_word(text, offsets, tok_prob, reduce="mean"):
     w = np.where(w >= 0, w, first)
     ok = w >= 0
     num = np.bincount(w[ok], weights=tok_prob[ok], minlength=len(words)); den = np.bincount(w[ok], minlength=len(words))
-    if reduce == "sum":
-        return [(s, e, float(v)) for (s, e), v in zip(words, num)]
     prob = np.where(den > 0, num / np.maximum(den, 1), np.nan)
     # words without a token (rare) take the previous word's value
     for i in range(len(prob)):
@@ -111,47 +109,6 @@ class Predictor:
                 r["words"] = token_to_word(t, encs[d].offsets, tp)
             out.append(r)
         return out
-
-    def explain(self, text, steps=24, max_tokens=1024, attn_layers=12):
-        """Why does the document head say what it says? Two per-word views of the *document* logit (needs an fp32 model, quant=0):
-        'ig'   integrated gradients of the document logit with respect to the input embeddings (baseline: the end-of-text token at every position), summed over
-               embedding dimensions and over the tokens of a word. Positive = pushes toward AI, negative = toward human. The sum over
-               all tokens equals logit(text) minus logit(baseline) (completeness; `ig_gap` reports the residual).
-        'attn' attention rollout (head-averaged attention, residual connections mixed in, product over layers): how much of every
-               token's final representation flows from each token, averaged over query tokens.
-        Only the first `max_tokens` tokens are explained (the matrices are quadratic in length)."""
-        enc = self.tk.encode(text[:200000])
-        n = min(len(enc.ids), max_tokens)
-        ids = torch.tensor(enc.ids[:n]).to(self.dev)
-        pos = torch.arange(n).to(self.dev); cu = torch.tensor([0, n], dtype=torch.int32).to(self.dev); seg = torch.zeros(n, dtype=torch.long).to(self.dev)
-        m = self.m
-        with torch.no_grad():
-            x = m.embed(ids).float()
-        with torch.no_grad():
-            x0 = m.embed(torch.full_like(ids, 151643)).float()  # <|endoftext|> everywhere: a zero baseline breaks down because RMSNorm amplifies near-zero inputs
-
-        def logit(e):
-            return m.heads(m.hidden(ids, pos, cu, n, e), seg, 1)[1][0]
-
-        grads = torch.zeros_like(x)
-        with torch.enable_grad():
-            for a in (torch.arange(steps, dtype=torch.float32) + 0.5) / steps:  # midpoint rule
-                xa = (x0 + a * (x - x0)).clone().requires_grad_(True)
-                grads += torch.autograd.grad(logit(xa), xa)[0] / steps
-        tok_ig = ((x - x0) * grads).sum(-1).detach().cpu().numpy()
-        with torch.no_grad():
-            full, base = logit(x).item(), logit(x0).item()
-            m.attn_store = []
-            logit(x)
-            A, m.attn_store = m.attn_store, None
-            R = torch.eye(n)
-            for w in A[-attn_layers:]:
-                w = 0.5 * w.cpu() + 0.5 * torch.eye(n)
-                R = w @ R
-            tok_attn = R.mean(0).numpy()  # column mean: average share of token j in the final representations
-        off = enc.offsets[:n]
-        return dict(n_tokens=n, doc_logit=full, baseline_logit=base, ig_gap=float(tok_ig.sum() - (full - base)),
-                    ig=token_to_word(text, off, tok_ig, "sum"), attn=token_to_word(text, off, tok_attn * n, "sum"))
 
 
 def heatmap_html(text, words, doc_prob=None):

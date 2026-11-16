@@ -127,29 +127,40 @@ def heat(text, words, truth=None, maxc=1400):
 
 def figs(model_path):
     from infer import Predictor
-    P = Predictor(model_path, device="cpu", quant=False)
-    ev = lambda n: pd.read_parquet(f"{D}/prep/eval/{n}.parquet")
-    sp = ev("spans_test"); ts = ev("textsight_2026")
-    items = []
-    rs = np.random.RandomState(4)
-    fr = [sum(max(0, min(e, 1500) - s_) for s_, e in sps) / 1500 for sps in sp.spans]
-    mixed = sp[(sp.label == 1) & (np.array(fr) > 0.25) & (np.array(fr) < 0.75)].sample(2, random_state=3)
-    for i, r in enumerate(mixed.itertuples()):
-        t = r.text[:1500]
-        sps = [(s, min(e, 1500)) for s, e in r.spans if s < 1500]
-        items.append((f"Mixed document from the Heterogeneous AI Spans test set (AI spans written by {r.model})", t, sps))
-    ai = ts[(ts.label == 1)].sample(2, random_state=1)
-    for r in ai.itertuples():
-        items.append((f"TextSight 2026 AI passage ({r.model}), fully AI-written", r.text, [(0, len(r.text))]))
-    hu = ts[(ts.label == 0)].sample(1, random_state=2)
-    for r in hu.itertuples():
-        items.append((f"TextSight 2026 human passage ({r.grp if r.grp != 'textsight_2026' else r.model})", r.text, []))
     from heatmap import render_card
+    P = Predictor(model_path, device="cpu", quant=0)
+    ev = lambda n: pd.read_parquet(f"{D}/prep/eval/{n}.parquet")
+    sp, rs, ts = ev("spans_test"), ev("raid_splice"), ev("textsight_2026")
+    CUT = 1400
+
+    def clip(spans):
+        return [(a, min(b, CUT)) for a, b in spans if a < CUT]
+
+    def share(spans):
+        return sum(b - a for a, b in clip(spans)) / CUT
+
+    items = []
+    # real Claude-written spans: a different generator and a different AI share per card
+    sp = sp[sp.label == 1].assign(fr=[share(x) for x in sp[sp.label == 1].spans])
+    sp = sp[(sp.fr > 0.2) & (sp.fr < 0.8) & (sp.text.str.len() > CUT)]
+    for k, (m, g) in enumerate(sp.groupby("model")):
+        for r in g.sample(min(2 if k == 0 else 1, len(g)), random_state=3).itertuples():
+            items.append((f"Mixed: human-origin text with AI spans by {r.model}, {100 * r.fr:.0f}% AI", r.text[:CUT], clip(r.spans)))
+    items = items[:4]
+    # RAID splices: alternating human / AI sentences about the same prompt
+    rs = rs.assign(fr=[share(x) for x in rs.spans])
+    rs = rs[(rs.fr > 0.25) & (rs.fr < 0.75) & (rs.text.str.len() > CUT)]
+    for dom, g in rs.groupby("domain"):
+        r = g.sample(1, random_state=5).iloc[0]
+        items.append((f"Mixed: sentence splice of human and {r.model} text, {r.domain}, {100 * r.fr:.0f}% AI", r.text[:CUT], clip(r.spans)))
+        if len([i for i in items if "splice" in i[0]]) == 3:
+            break
+    ai = ts[ts.label == 1].sample(1, random_state=1).iloc[0]
+    items.append((f"Pure AI: TextSight 2026 passage by {ai.model}", ai.text, [(0, len(ai.text))]))
+    hu = ts[ts.label == 0].sample(1, random_state=2).iloc[0]
+    items.append((f"Pure human: TextSight 2026 passage ({hu.model})", hu.text, []))
     preds = P.predict([t for _, t, _ in items])
-    html_ = ""
-    for k, ((title, t, sps), pr) in enumerate(zip(items, preds)):
-        html_ += render_card(t, pr, P.explain(t, steps=64), title=title, truth=sps, uid=f"fig1_{k}")
-    return html_
+    return "".join(render_card(t, pr, title=title, truth=sps) for (title, t, sps), pr in zip(items, preds))
 
 
 def mfu_stats(run):
@@ -313,12 +324,7 @@ def main():
     A("<p>Source-domain balance matters for calibration. In the first version (v1) human and AI texts were balanced only over the whole M4GT and MAGE samples, so a domain with few human texts (OUTFOX student essays: 2,106 human against 37,986 AI essays) taught the model that essay style means AI. v2 balances inside every domain:</p>"); A(tab_v1())
     A("<h2 id=sec-5>5. Word-level results</h2>"); A(tab_word())
     A("<p>Boundary error uses the maximum likelihood split of the word probabilities into human then AI words, the setting of SemEval-2024 8C. RoFT texts are short (about 10 sentences) and human annotators score poorly on them, so low numbers there are expected.</p>")
-    A("""<h3 id=sec-5-1>5.1 How the heatmaps are produced</h3><p>Each card in Figure <a href='#fig-1'>1</a> has three views of the same text. Words are whitespace-delimited strings; a word's value is taken over the tokens that end inside it.</p><ul>
-<li><b>AI probability</b> is the supervised token head: a linear layer on every final hidden state, trained to output the share of the token's characters that lie in AI-written spans. It localizes AI-written text; it is an output of the classifier, not an explanation of the document score. The word value is the mean over its tokens.</li>
-<li><b>Feature importance</b> is integrated gradients of the document logit with respect to the input embeddings: 64 midpoint steps (32 by default in predict.py) from a baseline text to the real text, gradient times embedding difference, summed over embedding dimensions and over the tokens of a word. Rose words raise the AI score, blue words lower it. The baseline is the end-of-text token at every position (a zero baseline converged poorly, completeness gaps of several logits, because RMSNorm amplifies near-zero inputs). That baseline reads as AI (+6.7 logits for a short test text), so values are relative to it and most words of human-looking text are blue. The attributions sum to the logit difference between the text and the baseline; the residual ("completeness gap") is printed under each view and was at most 0.07 logits in the examples.</li>
-<li><b>Attention</b> is attention rollout: per layer, the head-averaged attention matrix is mixed with the identity (residual connection) and the 12 layers are multiplied; the value is the column mean times the number of tokens, so 1.0 means uniform. It shows where the representation draws its information from, not whether a word pushes toward AI or human, and it is not a causal explanation.</li></ul>
-<p>The document logit is a linear function of the mean of the final hidden states, so for a mixed text it estimates the AI share and integrated gradients explain that estimate. Explanations cost one forward and backward pass per step (seconds on one CPU for a few hundred tokens), use the fp32 model, and cover the first 1,024 tokens. Only the probability view has ground truth (dotted underline); the importance and attention views are checked by completeness only.</p>""")
-    A("<h3 id=fig-1>Figure 1. Word heatmaps (click the tabs)</h3>")
+    A("<h3 id=fig-1>Figure 1. Word heatmaps on mixed and pure texts</h3><p>Each word is shaded by the mean P(AI) of its tokens (the token head). Dotted underline marks words inside a true AI span. The first four cards are real Claude-written spans inside human-origin text (Heterogeneous AI Spans test set), the next three are RAID splices that alternate sentences of a human text and an AI text written for the same prompt (held-out source documents), then one fully AI and one fully human passage from TextSight 2026. For a mixed text the document score estimates the share of AI text. The cards are fixed random draws, not selected for success. The second card is a miss in strength: the Claude Haiku span imitates 19th-century prose, the detector tints it in the right place but only at about 20 to 30%, so the document score is 15% against a true 56%.</p>")
     A(figs(f"{R}/{a.final}/model.pt"))
     A("<h2 id=sec-6>6. CPU inference</h2>"); A(tab_cpu()); A(int8_table())
     A("<p>Quantizing the MLP down projections as well (all linear layers) was no faster in a direct test (0.37 against 0.39 s per document, 8 threads, 300 RAID documents; <code>aidetect/diag_quant.py</code>) and moved the document logit by +3.8 on average (AUROC 99.98 to 99.25, false positive rate at 0.5 from 1.3% to 45%), probably because of outlier activations at the down projection input. Keeping those layers and the heads in fp32 leaves the logit within 0.03 on average (correlation 0.999).</p>")
