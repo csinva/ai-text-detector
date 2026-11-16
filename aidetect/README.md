@@ -1,6 +1,6 @@
 # AI-generated text detector from voyage-4-nano
 
-voyage-4-nano (Qwen3 layers, 12 layers, hidden 1,024) fine-tuned with a document head and a per-token head: P(AI-generated) for a text and a probability for every word (heatmap). Full write-up: `reports/04_ai_text_detector.html`.
+voyage-4-nano (Qwen3 layers, 12 layers, hidden 1,024) fine-tuned with a document head and a per-token head: P(AI-generated) for a text and a probability for every word (heatmap). Full write-up: `reports/00_ai_text_detector.html`.
 
 ## Use
 

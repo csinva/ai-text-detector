@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build reports/04_ai_text_detector.html from the run outputs under $V45_DATA_ROOT/data/aidetect/runs.
+"""Build reports/00_ai_text_detector.html from the run outputs under $V45_DATA_ROOT/data/aidetect/runs.
 
   python 09_report.py [--final final] [--ood final_ood]   (CPU only; renders the heatmap figures with the final model on CPU)
 """
@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect")
 R = f"{D}/runs"
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "..", "reports", "04_ai_text_detector.html")
+OUT = os.path.join(HERE, "..", "reports", "00_ai_text_detector.html")
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--final", default="final_v2"); ap.add_argument("--ood", default="final_ood_v2"); ap.add_argument("--v1", default="final")
@@ -287,7 +287,7 @@ def main():
     A = parts.append
     A(f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>AI text detector</title><link rel=stylesheet href='theme.css'>{CSS}</head><body>")
     A("<nav class=topnav><a href='index.html'>&larr; All reports</a></nav>")
-    A("<h1>04. AI-generated text detector with word-level heatmaps, from voyage-4-nano</h1>")
+    A("<h1>00. AI-generated text detector with word-level heatmaps, from voyage-4-nano</h1>")
     A(f"<p class=box><b>Summary.</b> {summ} Details: data in Sec. <a href='#sec-2'>2</a>, training and MFU in Sec. <a href='#sec-3'>3</a>, document results in Sec. <a href='#sec-4'>4</a>, "
       f"word-level results and heatmaps in Sec. <a href='#sec-5'>5</a>, CPU speed in Sec. <a href='#sec-6'>6</a>, caveats in Sec. <a href='#sec-7'>7</a>. Generated {strftime('%Y-%m-%d %H:%M')} UTC.</p>")
     A("<h2 id=sec-1>1. Design</h2><ul>"
@@ -351,7 +351,7 @@ MODEL=.../final/model.pt OUT=.../final/cpu_bench.json sbatch aidetect/cpu.slurm;
 python aidetect/09_report.py                      # this page
 python aidetect/predict.py --model .../final/model.pt --file doc.txt --html heat.html   # use the detector
 </pre>
-<p>Prompt for a coding agent: "In ~/voyage-4.5/aidetect build an AI-text detector from /data/new/prod_models/voyage-4-nano on one H100: Qwen3 backbone with bidirectional attention, a token head and a document head, trained on RAID, MAGE, M4GT (COLING-2025), open-text-detector/heterogeneous-ai-spans, SemEval-2024 8C train and RAID sentence splices with span labels (decontaminate against all eval texts), packed varlen FlashAttention-3 training with bf16 autocast, torch.compile, frozen embeddings, lr 1.5e-4, 1B tokens. Evaluate on MAGE test and OOD, RAID held-out groups, SemEval 8A, HC3, TextSight 2026, Heterogeneous AI Spans test (document AUROC, TPR at 1% FPR; word AUROC, IoU) and SemEval 8C / RoFT (boundary MAE), compare with desklib/ai-text-detector-v1.01 and three RoBERTa detectors, benchmark CPU latency (fp32, bf16, int8) and report MFU. Regenerate reports/04_ai_text_detector.html with aidetect/09_report.py."</p></details></body></html>"""
+<p>Prompt for a coding agent: "In ~/voyage-4.5/aidetect build an AI-text detector from /data/new/prod_models/voyage-4-nano on one H100: Qwen3 backbone with bidirectional attention, a token head and a document head, trained on RAID, MAGE, M4GT (COLING-2025), open-text-detector/heterogeneous-ai-spans, SemEval-2024 8C train and RAID sentence splices with span labels (decontaminate against all eval texts), packed varlen FlashAttention-3 training with bf16 autocast, torch.compile, frozen embeddings, lr 1.5e-4, 1B tokens. Evaluate on MAGE test and OOD, RAID held-out groups, SemEval 8A, HC3, TextSight 2026, Heterogeneous AI Spans test (document AUROC, TPR at 1% FPR; word AUROC, IoU) and SemEval 8C / RoFT (boundary MAE), compare with desklib/ai-text-detector-v1.01 and three RoBERTa detectors, benchmark CPU latency (fp32, bf16, int8) and report MFU. Regenerate reports/00_ai_text_detector.html with aidetect/09_report.py."</p></details></body></html>"""
 
 if __name__ == "__main__":
     main()
