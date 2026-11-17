@@ -15,10 +15,12 @@ import numpy as np, pandas as pd
 
 D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect")
 FULL = "--full" in sys.argv
-LIC, OUT = f"{D}/licensed", f"{D}/prep_lic2{'_full' if FULL else ''}"
+RATIO = float(next((a.split('=')[1] for a in sys.argv if a.startswith('--ratio=')), 1.3))  # AI documents per human document in the generated-text registers
+RTAG = '' if RATIO == 1.3 else f'_r{int(round(RATIO * 10))}'
+LIC, OUT = f"{D}/licensed", f"{D}/prep_lic3{RTAG}{'_full' if FULL else ''}"
 os.makedirs(f"{OUT}/eval", exist_ok=True)
 H_MODELS, H_DOMAINS, H_ATTACKS = {"gpt4", "mistral-chat", "cohere"}, {"abstracts"}, {"paraphrase", "homoglyph", "article_deletion"}
-H_GENS, H_SRC = {"olmo2_7b", "phi4mini"}, {"foodista", "uk_hansard"}  # generated-text study: generators and registers held out of the held-out model
+H_GENS, H_SRC = {"olmo2_7b", "phi4mini", "qwen3_30b"}, {"foodista", "uk_hansard"}  # generated-text study: generators and registers held out of the held-out model
 
 
 def nh(t):
@@ -29,6 +31,15 @@ def pure(df, label_col="y"):
     df = df.copy()
     df["spans"] = [[[0, len(t)]] if y else [] for t, y in zip(df.text, df[label_col])]
     return df
+
+
+def balanced_ratio(df, key, ratio=1.3, seed=0):
+    """per group: all human texts, and at most `ratio` times as many AI texts (so round-2 AI texts are not thrown away)."""
+    out = []
+    for _, g in df.groupby(key):
+        h, a = g[g.y == 0], g[g.y == 1]
+        if len(h) and len(a): out += [h, a.sample(min(len(a), int(ratio * len(h))), random_state=seed)]
+    return pd.concat(out)
 
 
 def balanced_by(df, key, seed=0):
@@ -108,7 +119,7 @@ def load_gen():
     """human passages (licensed Common Pile subsets) and the AI texts generated from them (14_generate.py); eval passages = 8% by hash."""
     h = pd.read_parquet(f"{LIC}/human_cp.parquet"); h["uid"] = [f"{s}:{i}" for i, s in zip(h.index, h.src)]
     h["text"] = h.text.map(trim_end); h = h[h.text.str.len() >= 300]
-    g = pd.concat([pd.read_parquet(f"{LIC}/gen/{f}") for f in sorted(os.listdir(f"{LIC}/gen")) if f.endswith(".parquet") and not f.startswith("smoke")])
+    g = pd.concat([pd.read_parquet(f"{LIC}/gen/{f}") for f in sorted(os.listdir(f"{LIC}/gen")) if f.endswith(".parquet") and "smoke" not in f])
     ev = lambda u: int(hashlib.md5(u.encode()).hexdigest(), 16) % 100 < 8
     h["evalg"] = h.uid.map(ev); g["evalg"] = g.uid.map(ev)
     return h, g
@@ -154,10 +165,15 @@ def main():
         df = pd.concat([pd.DataFrame(dict(text=hh.text, label=0, grp=name, model="human", attack="human", domain=hh.src, spans=[[] for _ in range(len(hh))])),
                         pd.DataFrame(dict(text=aa.text, label=1, grp=name, model=aa.gen_model, attack=aa.task, domain=aa.src, spans=aa.spans.tolist()))])
         ev[name] = df.reset_index(drop=True)
-    gen_set("gen_id", lambda x: ~x.src.isin(H_SRC), lambda x: ~x.gen_model.isin(H_GENS) & ~x.src.isin(H_SRC))
-    gen_set("gen_unseen_gen", lambda x: ~x.src.isin(H_SRC), lambda x: x.gen_model.isin(H_GENS) & ~x.src.isin(H_SRC))
-    gen_set("gen_unseen_domain", lambda x: x.src.isin(H_SRC), lambda x: x.src.isin(H_SRC) & ~x.gen_model.isin(H_GENS))
+    R1 = lambda x: x.task.isin(["continue", "rewrite", "write", "casual"])
+    gen_set("gen_id", lambda x: ~x.src.isin(H_SRC), lambda x: R1(x) & ~x.gen_model.isin(H_GENS) & ~x.src.isin(H_SRC))
+    gen_set("gen_unseen_gen", lambda x: ~x.src.isin(H_SRC), lambda x: R1(x) & x.gen_model.isin(H_GENS) & ~x.src.isin(H_SRC))
+    gen_set("gen_unseen_domain", lambda x: x.src.isin(H_SRC), lambda x: R1(x) & x.src.isin(H_SRC) & ~x.gen_model.isin(H_GENS))
     gen_set("gen_mixed", lambda x: ~x.src.isin(H_SRC), lambda x: ~x.src.isin(H_SRC), mixed=True, cap=1500)
+    # round 2: humanizer-style rewrites, sentence-level edits, and the newest generators (the held-out model never trains on qwen3_30b)
+    gen_set("gen_humanized", lambda x: ~x.src.isin(H_SRC), lambda x: x.task.str.startswith("humanize_") & ~x.src.isin(H_SRC), cap=1500)
+    gen_set("gen_edit", lambda x: ~x.src.isin(H_SRC), lambda x: (x.task == "edit") & ~x.src.isin(H_SRC), cap=2000)
+    gen_set("gen_newgen", lambda x: ~x.src.isin(H_SRC), lambda x: R1(x) & x.gen_model.isin(["gptoss20b", "qwen3_30b"]) & ~x.src.isin(H_SRC), cap=1500)
 
     m_te = pd.read_parquet(f"{LIC}/mage_squad_test.parquet"); m_te["label"] = 1 - m_te.label  # MAGE: 1 = human
     ev["mage_squad_test"] = m_te.assign(grp="mage_squad_test").rename(columns={"src": "model"})[["text", "label", "grp", "model"]]
@@ -202,7 +218,7 @@ def main():
     gtr = pd.concat([pd.DataFrame(dict(text=ht.text, spans=[[] for _ in range(len(ht))], src="gen_" + ht.src, y=0)),
                      pd.DataFrame(dict(text=[t for t, _ in tr_ai], spans=[sp for _, sp in tr_ai], src="gen_" + gt.src, y=1))])
     gtr = gtr[(gtr.y == 0) | (gtr.spans.map(len) > 0)]
-    gtr = balanced_by(gtr, "src", 7); ra = random.Random(21)
+    gtr = balanced_ratio(gtr, "src", RATIO, 7); ra = random.Random(21)
     gtr["text"] = [straighten(t) if (y == 1 and ra.random() < 0.55) else t for t, y in zip(gtr.text, gtr.y)]  # typography is not a label
     parts.append(gtr.drop(columns=["y"]))
     mg = pd.concat([pd.read_parquet(f"{LIC}/mage_squad_{s}.parquet") for s in ("train", "valid")]); mg["y"] = 1 - mg.label

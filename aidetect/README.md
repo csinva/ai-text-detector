@@ -6,7 +6,7 @@ voyage-4-nano (Qwen3 layers, 12 layers, hidden 1,024) fine-tuned with a document
 
 ```bash
 export V45_DATA_ROOT=/data18/voyage_4_5_experiments
-M=$V45_DATA_ROOT/data/aidetect/runs/lic2_nano/model.pt          # fp32 weights, 1.4 GB (the frozen embedding table is most of it)
+M=$V45_DATA_ROOT/data/aidetect/runs/lic3_nano_r10/model.pt          # fp32 weights, 1.4 GB (the frozen embedding table is most of it)
 ~/voyage-4.5/.venv-aid/bin/python aidetect/predict.py --model $M --file doc.txt --html heat.html --json out.json            # CPU, fp32
 ~/voyage-4.5/.venv-aid/bin/python aidetect/predict.py --model $M --file doc.txt --quant 2 --html heat.html                  # CPU, int8 (about 2x faster, same scores)
 ```
@@ -31,7 +31,7 @@ Only commercially usable data and weights are used (audit table: `reports/00_ai_
 | file | purpose |
 |---|---|
 | `00_download.py`, `12_licensed_data.py` | download the licensable sources, filter them into `$V45_DATA_ROOT/data/aidetect/licensed/` and write the licence audit |
-| `13_*`, `14_human_corpus.py`, `14_generate.py`, `gen.slurm`, `14_audit_extra.py` | search for openly licensed text, sample human passages from Common Pile, generate AI text with Apache/MIT models (vLLM), extend the audit |
+| `13_*`, `14_human_corpus.py`, `14_generate.py`, `15_generate2.py`, `15_human_extra.py`, `gen.slurm`, `gen2.slurm`, `14_audit_extra.py` | search for openly licensed text, sample human passages from Common Pile, generate AI text with Apache/MIT models (vLLM), extend the audit |
 | `01_prep.py [--full]` | training mixtures and eval sets from the licensed tree (`--full`: also train on RAID's held-out generators / domain / attacks) |
 | `02_tokenize.py [--full]` | token ids, per-token soft labels |
 | `03_train.py` | trainer: packed varlen FlashAttention-3, bf16 autocast, torch.compile, MFU logging, checkpoint/resume |

@@ -9,7 +9,7 @@ from infer import Predictor
 D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect")
 model = sys.argv[1]; name = sys.argv[2] if len(sys.argv) > 2 else "raid_id"; n = int(sys.argv[3]) if len(sys.argv) > 3 else 300
 torch.set_num_threads(int(sys.argv[4]) if len(sys.argv) > 4 else 8)
-df = pd.read_parquet(f"{D}/prep_lic2/eval/{name}.parquet").sample(n, random_state=1)
+df = pd.read_parquet(f"{D}/prep_lic3/eval/{name}.parquet").sample(n, random_state=1)
 res = {}
 for q in [0, 1, 3, 2]:
     P = Predictor(model, device="cpu", quant=q)

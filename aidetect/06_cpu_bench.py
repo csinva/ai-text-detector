@@ -14,7 +14,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--model", required=True); ap.add_argument("--n_layers", type=int, default=12)
 ap.add_argument("--threads", default="1,4,8,16"); ap.add_argument("--out"); ap.add_argument("--reps", type=int, default=6)
 a = ap.parse_args()
-df = pd.read_parquet(f"{D}/prep_lic2/eval/spans_test.parquet")
+df = pd.read_parquet(f"{D}/prep_lic3/eval/spans_test.parquet")
 texts = df.text.tolist()
 res = []
 for variant in ["fp32", "bf16", "int8"]:

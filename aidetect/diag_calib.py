@@ -9,7 +9,7 @@ D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect")
 model, name = sys.argv[1], sys.argv[2]
 col = sys.argv[3] if len(sys.argv) > 3 else "model"
 n = int(sys.argv[4]) if len(sys.argv) > 4 else 600
-df = pd.read_parquet(f"{D}/prep_lic2/eval/{name}.parquet").sample(n, random_state=0)
+df = pd.read_parquet(f"{D}/prep_lic3/eval/{name}.parquet").sample(n, random_state=0)
 P = Predictor(model, device="cpu")
 pr = P.predict(df.text.tolist(), with_words=False)
 df["p"] = [x["doc_prob"] for x in pr]; df["ntok"] = [x["n_tokens"] for x in pr]; df["logit"] = [x["doc_logit"] for x in pr]

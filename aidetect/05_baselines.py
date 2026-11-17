@@ -66,7 +66,7 @@ if __name__ == "__main__":
         tok, m, post = load(key)
         res[key] = {}
         for name in a.sets.split(","):
-            df = pd.read_parquet(f"{ev.D}/prep_lic2/eval/{name}.parquet")
+            df = pd.read_parquet(f"{ev.D}/prep_lic3/eval/{name}.parquet")
             t0 = time.time(); p = score(tok, m, post, df.text.tolist())
             res[key][name] = dict(doc=ev.doc_metrics(df.label.values, p), seconds=time.time() - t0, **ev.breakdown(df, p, skip=name == "spans_test"))
             print(key, name, {k: round(v, 1) for k, v in res[key][name]["doc"].items()}, flush=True)
