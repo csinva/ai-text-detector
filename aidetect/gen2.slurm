@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Round-2 AI text generation with vLLM (std on new generators, humanize, edit), one permissively licensed model per job step.
 #   MODELS="openai/gpt-oss-20b:gptoss20b" [MODES=std,humanize,edit] [LIMIT=50] sbatch --export=ALL --job-name=00-gen2 aidetect/gen2.slurm
-#SBATCH --partition=P4
+#SBATCH --partition=P3
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI text generation with vLLM, one permissively licensed model per job step.
 #   MODELS="Qwen/Qwen3-8B:qwen3_8b Qwen/Qwen3-4B-Instruct-2507:qwen3_4b" [LIMIT=50] sbatch --export=ALL --job-name=00-gen aidetect/gen.slurm
-#SBATCH --partition=P4
+#SBATCH --partition=P3
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16

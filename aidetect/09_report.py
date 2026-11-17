@@ -96,6 +96,29 @@ def tab_v2v3():
     return f'<div class=wide><table id=tab-7><caption style="text-align:left"><b>Table 7.</b> Second round on voyage-4-nano. Round 2 adds 18k Stack Exchange passages, humanizer-style rewrites of AI text, sentence-level AI edits inside human text and text from two newer generators (gpt-oss-20b, Qwen3-30B-A3B); 1.3:1 and 1:1 are the AI : human document ratio in the generated-text registers. All models 600M tokens except the last column group (1B). The "final" model is the best round-2 variant on WasItAIGenerated and TextSight. Difference to round 1 in parentheses; the round-1 model is evaluated on the same collection of sets.</caption>{h}{rows}</table></div>'
 
 
+def tab_r3():
+    """Round 3: retrain on the extended mixture (news blogs + US GPO text and generations) versus the round-2 final model, plus the humanizer benchmarks."""
+    n = J(f"{R}/lic4_nano_r10/eval.json"); fh, nh = J(f"{R}/{REF}/humanizers.json"), J(f"{R}/lic4_nano_r10/humanizers.json")
+    if not n or not fh or not nh: return ""
+    sets = ["mage_squad_test", "raid_unseen_all", "textsight_2026", "wasit_2026", "spans_test", "gen_mixed", "gen_edit", "gen_newgen"]
+    rows = "".join(f"<tr><td>{SET_LABEL[s_]}</td><td>{get(fin, s_, 'auroc'):.1f}</td><td>{d(get(n, s_, 'auroc'), get(fin, s_, 'auroc'))}</td><td>{get(fin, s_, 'tpr1'):.1f}</td><td>{d(get(n, s_, 'tpr1'), get(fin, s_, 'tpr1'))}</td></tr>" for s_ in sets)
+    t1 = ("<div class=wide><table id=tab-17><caption style='text-align:left'><b>Table 17.</b> Round 3: the same recipe as the final model on a mixture with 10.3k Global Voices posts (2017 or earlier, CC BY) and 4.0k US GPO passages added, and generations from all eight generators on them. Differences are to the round-2 final model, on the same evaluation sets.</caption>"
+          f"<tr><th>Evaluation set</th><th>AUROC: final</th><th>AUROC: round 3</th><th>TPR at 1% FPR: final</th><th>TPR at 1% FPR: round 3</th></tr>{rows}</table></div>")
+    hs = sorted(fh["all"]["by_humanizer"], key=lambda h: fh["all"]["by_humanizer"][h]["recall@1"])
+    def vend(h):
+        r = fh["all"]["by_humanizer"][h]; v = [r[c] for c in r if c.startswith("v_") and c != "v_pangram"]; return (100 * r["v_pangram"] if "v_pangram" in r else float("nan")), 100 * float(np.mean(v)) if v else float("nan")
+    rr = ""
+    for h in hs:
+        a_, b_ = fh["all"]["by_humanizer"][h], nh["all"]["by_humanizer"][h]; pg, ot = vend(h)
+        rr += f"<tr><td>{h}</td><td>{a_['n']}</td><td>{100*a_['recall@1']:.1f}</td><td>{d(100*b_['recall@1'], 100*a_['recall@1'])}</td><td>{100*a_['recall@5']:.1f}</td><td>{pg:.1f}</td><td>{ot:.1f}</td></tr>"
+    A_, B_ = fh["all"]["outputs"], nh["all"]["outputs"]
+    rr += f"<tr><td><b>All outputs</b></td><td>{A_['n']}</td><td><b>{100*A_['recall@1']:.1f}</b></td><td>{d(100*B_['recall@1'], 100*A_['recall@1'])}</td><td><b>{100*A_['recall@5']:.1f}</b></td><td></td><td></td></tr>"
+    t2 = ("<div class=wide><table id=tab-18><caption style='text-align:left'><b>Table 18.</b> Detection of commercial humanizer outputs (HumanizerBench, June to November 2026, and AI Humanizer Benchmark, September to November 2026; CC BY 4.0; 19 tools). Thresholds are set at 1% and 5% FPR on 2,216 pooled human texts (WasItAIGenerated, TextSight, Common Pile eval split). Recall is the share of humanizer outputs above the threshold; the raw LLM inputs are detected at "
+          f"{100*fh['all']['inputs']['recall@1']:.1f}% (1% FPR). The last two columns are the share flagged as AI by the vendors' own detectors on the same outputs (Pangram, and the mean of the other detectors the benchmark reports), with their own thresholds.</caption>"
+          f"<tr><th>Humanizer</th><th>n</th><th>Recall at 1% FPR: final</th><th>round 3</th><th>Recall at 5% FPR: final</th><th>Pangram flagged (%)</th><th>Other vendors, mean flagged (%)</th></tr>{rr}</table></div>")
+    return t1 + t2
+
+
 def tab_agg():
     docs = [("document head", res[V3A])] + [(n, J(f"{R}/{V3A}/{f}")) for n, f in (("mean token probability", "eval_tok.json"), ("average of both", "eval_avg.json"))]
     sets = ["textsight_2026", "wasit_2026", "spans_test", "gen_edit", "gen_mixed", "raid_id"]
@@ -363,6 +386,7 @@ def main():
     A("<h3 id=sec-3-1>3.1 Backbone comparison</h3><p>Qwen3-Embedding-0.6B and Qwen3-0.6B-Base have the layer shape of voyage-4-nano (hidden 1,024, 16 and 8 heads, MLP 3,072) but 28 layers. Taking the first 12 layers matches nano's compute (189M matmul parameters); the 28-layer run uses all 440M. All start from their published weights with the same bidirectional-attention fine-tuning, so the causal-trained Qwen3-Embedding must adapt to bidirectional attention.</p>")
     A(tab_models()); A(tab_v1v2())
     A("<h3 id=sec-3-2>3.2 Second round: more data, rebalancing, aggregation</h3>" + SEC32); A(tab_v2v3()); A(tab_agg())
+    A("<h3 id=sec-3-3>3.3 Third round: more evaluation sets, more human text, retrain</h3><p>Evaluation: HumanizerBench and AI Humanizer Benchmark give 3,610 outputs of 19 commercial humanizers from 2026, scored in <a href='#tab-18'>Table 18</a>. Data: informal human prose is the weakest domain, so I added Global Voices posts from 2005 to 2008 (CC BY, 10.3k passages) and US GPO documents (public domain, 4.0k) to the human pool and generated AI text from them with all eight generators (continue, rewrite, write, casual, edit). The final-recipe model retrained on it (<a href='#tab-17'>Table 17</a>) does not improve on the round-2 final model: the external sets move by less than the selection noise, and sentence-edit TPR drops. The round-2 model is kept. The humanizers are not the main gap: it flags 74% of their outputs at 1% FPR, and the gap to a threshold at 5% FPR is smaller than the spread between humanizers (Grammarly and several rewriters are easy, HIX Bypass and Humbot are hard).</p>" + tab_r3())
     A("<h2 id=sec-4>4. Document-level results</h2>")
     A(f"<p>AUROC and true positive rate at 1% false positive rate are threshold free (the 1% threshold is set on the human texts of each set). At the fixed 0.5 threshold the reference model's false positive rate on human text is {get(fin, 'mage_squad_test', 'fpr'):.1f}% (MAGE-SQuAD), {get(fin, 'raid_id', 'fpr'):.1f}% (RAID), {get(fin, 'textsight_2026', 'fpr'):.1f}% (TextSight 2026) and {get(fin, 'wasit_2026', 'fpr'):.1f}% (WasItAIGenerated). The comparison detectors are black boxes with training data that is not fully documented: they may have seen some of these sources. Differences to the voyage-4-nano detector in parentheses.</p>")
     A(tab_doc("auroc", "Table 9. Document AUROC (0-100).", "tab-9")); A(wasit_groups()); A(tab_doc("tpr1", "Table 11. True positive rate (%) at 1% false positive rate.", "tab-11"))
@@ -409,6 +433,10 @@ python aidetect/04_eval.py --model .../lic3_nano/model.pt --out .../lic3_nano/ev
 # round 1 and backbone baselines (Qwen3-Embedding, Qwen3-Base): same commands with the round-1 data build (generated files without the r2_ prefix), --n_layers 12 --backbone .../models/<name>
 CMD="aidetect/05_baselines.py --models desklib,fakespot,openai-large --out .../runs/baselines_lic3.json" sbatch aidetect/run.slurm
 MODEL=.../lic3_nano_r10/model.pt OUT=.../lic3_nano_r10/cpu_bench.json sbatch aidetect/cpu.slurm; MODEL=... OUT=.../lic3_nano_r10/eval_int8_cpu.json sbatch aidetect/cpu_eval.slurm
+python aidetect/16_human_news.py 20000 4000 1; GEN_SRCS=news_blog,usgpo MODELS=... sbatch aidetect/gen.slurm; GEN_SRCS=news_blog,usgpo MODES=std,edit sbatch aidetect/gen2.slurm   # round 3 data
+VER=4 python aidetect/01_prep.py --full --ratio=1.0; VER=4 python aidetect/02_tokenize.py --full --ratio=1.0
+NAME=lic4_nano_r10 TOKENS=6e8 EXTRA="--tok tok_lic4_r10_full" sbatch aidetect/train_eval.slurm            # round-3 retrain (not adopted)
+python aidetect/16_build_humanizer_sets.py; NAME=lic3_nano_r10 sbatch aidetect/hum_eval.slurm              # humanizer benchmarks (Table 18)
 python aidetect/09_report.py                      # this page
 python aidetect/predict.py --model .../lic3_nano_r10/model.pt --file doc.txt --html heat.html   # use the detector
 </pre>

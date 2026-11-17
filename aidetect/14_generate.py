@@ -17,7 +17,7 @@ GENS = {"Qwen/Qwen3-8B": "qwen3_8b", "Qwen/Qwen3-4B-Instruct-2507": "qwen3_4b", 
 TASKS = [("continue", 0.40), ("rewrite", 0.25), ("write", 0.25), ("casual", 0.10)]
 REG = {"stackexchange": "a helpful post on a Stack Exchange site", "arxiv_abstract": "a scientific paper abstract", "pubmed": "a paragraph from a biomedical research article",
        "gutenberg": "a passage from a novel or non-fiction book", "pre1929_books": "a passage from an old book", "uk_hansard": "a speech or written answer in the UK Parliament",
-       "foodista": "a food blog or recipe article"}
+       "foodista": "a food blog or recipe article", "news_blog": "a blog post or news report from a citizen-media site", "usgpo": "a US government document"}
 SENT = re.compile(r"(?<=[.!?])\s+|\n+")
 PRE = re.compile(r"^(sure|here is|here's|certainly|okay|of course|below is)[^\n]{0,120}\n+", re.I)
 
@@ -60,6 +60,7 @@ def main():
     h = pd.read_parquet(f"{D}/licensed/human_cp.parquet")
     gi = list(GENS).index(a.model); ng = len(GENS)
     h["uid2"] = [f"{s}:{i}" for i, s in zip(h.index, h.src)]
+    if os.environ.get("GEN_SRCS"): h = h[h.src.isin(os.environ["GEN_SRCS"].split(","))]  # round 3: only the new sources
     mine = h[[pick(u, ng)[0] == gi for u in h.uid2]]
     if a.limit: mine = mine.head(a.limit)
     rng = random.Random(gi); reqs = []

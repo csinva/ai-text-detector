@@ -52,6 +52,6 @@ def run(name, prep="prep", tok="tok"):
 
 if __name__ == "__main__":
     rt = next((a.split("=")[1] for a in sys.argv if a.startswith("--ratio=")), "1.3")
-    suf = "_lic3" + ("" if rt == "1.3" else f"_r{int(round(float(rt) * 10))}") + ("_full" if "--full" in sys.argv else "")
+    suf = "_lic" + os.environ.get("VER", "3") + ("" if rt == "1.3" else f"_r{int(round(float(rt) * 10))}") + ("_full" if "--full" in sys.argv else "")
     for n in [a for a in sys.argv[1:] if not a.startswith("--")] or ["dev", "train"]:
         run(n, "prep" + suf, "tok" + suf)

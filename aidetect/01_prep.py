@@ -17,7 +17,7 @@ D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect")
 FULL = "--full" in sys.argv
 RATIO = float(next((a.split('=')[1] for a in sys.argv if a.startswith('--ratio=')), 1.3))  # AI documents per human document in the generated-text registers
 RTAG = '' if RATIO == 1.3 else f'_r{int(round(RATIO * 10))}'
-LIC, OUT = f"{D}/licensed", f"{D}/prep_lic3{RTAG}{'_full' if FULL else ''}"
+LIC, OUT = f"{D}/licensed", f"{D}/prep_lic{os.environ.get("VER", "3")}{RTAG}{'_full' if FULL else ''}"
 os.makedirs(f"{OUT}/eval", exist_ok=True)
 H_MODELS, H_DOMAINS, H_ATTACKS = {"gpt4", "mistral-chat", "cohere"}, {"abstracts"}, {"paraphrase", "homoglyph", "article_deletion"}
 H_GENS, H_SRC = {"olmo2_7b", "phi4mini", "qwen3_30b"}, {"foodista", "uk_hansard"}  # generated-text study: generators and registers held out of the held-out model

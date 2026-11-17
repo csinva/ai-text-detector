@@ -30,7 +30,8 @@ def main():
     a = ap.parse_args(); modes = a.modes.split(","); mi = ORDER.index(a.model)
     D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect"); G = f"{D}/licensed/gen"
     h = pd.read_parquet(f"{D}/licensed/human_cp.parquet"); h["uid2"] = [f"{s}:{i}" for i, s in zip(h.index, h.src)]
-    g = pd.concat([pd.read_parquet(f"{G}/{f}") for f in sorted(os.listdir(G)) if f.endswith(".parquet") and not f.startswith(("smoke", "r2_"))])
+    if os.environ.get("GEN_SRCS"): h = h[h.src.isin(os.environ["GEN_SRCS"].split(","))]  # round 3: only the new sources
+    g = pd.concat([pd.read_parquet(f"{G}/{f}") for f in sorted(os.listdir(G)) if f.endswith(".parquet") and not f.startswith(("smoke", "r2_", "r3_"))])
     rng = random.Random(100 + mi); reqs = []  # (mode, task, row dict, prompt, extra, max_new_tokens)
 
     if "std" in modes and a.model in NEW:

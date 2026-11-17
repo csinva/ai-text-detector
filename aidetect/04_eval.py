@@ -95,12 +95,15 @@ def breakdown(df, p, skip=False):
     return out
 
 
+PREP = os.environ.get("PREP", "prep_lic3")
+
+
 def run(model, out, device, sets, max_docs, window, n_layers=12, causal=False, quant=0, dtype=None, score="doc"):
     from infer import Predictor
     P = Predictor(model, device=device, window=window, n_layers=n_layers, causal=causal, quant=quant, dtype=dtype)
     res, t_all = {}, time.time()
     for name in sets:
-        df = pd.read_parquet(f"{D}/prep_lic3/eval/{name}.parquet")
+        df = pd.read_parquet(f"{D}/{PREP}/eval/{name}.parquet")
         if max_docs and len(df) > max_docs: df = df.sample(max_docs, random_state=0)
         need_words = name in WORD_SETS
         t0 = time.time()
