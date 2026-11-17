@@ -123,22 +123,31 @@ class Detector(nn.Module):
         return self.heads(self.hidden(ids, pos, cu, max_s), seg, nseq)
 
     @torch.no_grad()
-    def load_nano(self, path="/data/new/prod_models/voyage-4-nano/model.safetensors"):
+    def load_backbone(self, path="/data/new/prod_models/voyage-4-nano/model.safetensors"):
+        """Load Qwen3-layout weights (voyage-4-nano, Qwen3-Embedding-0.6B, Qwen3-0.6B-Base): a safetensors file or a directory holding
+        model.safetensors. Uses the first len(self.layers) layers (layer truncation). Embedding rows missing from a smaller vocabulary
+        (Qwen3-Embedding has 151,669) are filled with the mean embedding."""
+        import os
         from safetensors.torch import load_file
-        sd = load_file(path)
-        g = lambda k: sd[k].float()
-        self.embed.weight.copy_(g("model.embed_tokens.weight")); self.norm.copy_(g("model.norm.weight"))
+        sd = load_file(path if path.endswith(".safetensors") else os.path.join(path, "model.safetensors"))
+        pre = "model." if "model.embed_tokens.weight" in sd else ""
+        g = lambda k: sd[pre + k].float()
+        emb = g("embed_tokens.weight"); n = min(emb.shape[0], self.embed.weight.shape[0])
+        self.embed.weight.copy_(emb.mean(0, keepdim=True).expand_as(self.embed.weight)); self.embed.weight[:n].copy_(emb[:n])
+        self.norm.copy_(g("norm.weight"))
         for i, l in enumerate(self.layers):
-            p = f"model.layers.{i}."
+            p = f"layers.{i}."
             l.ln1.copy_(g(p + "input_layernorm.weight")); l.ln2.copy_(g(p + "post_attention_layernorm.weight"))
             l.qn.copy_(g(p + "self_attn.q_norm.weight")); l.kn.copy_(g(p + "self_attn.k_norm.weight"))
-            l.qkv.weight.copy_(torch.cat([g(p + f"self_attn.{n}_proj.weight") for n in "qkv"], 0))
+            l.qkv.weight.copy_(torch.cat([g(p + f"self_attn.{n_}_proj.weight") for n_ in "qkv"], 0))
             l.o.weight.copy_(g(p + "self_attn.o_proj.weight"))
             l.gu.weight.copy_(torch.cat([g(p + "mlp.gate_proj.weight"), g(p + "mlp.up_proj.weight")], 0))
             l.down.weight.copy_(g(p + "mlp.down_proj.weight"))
         nn.init.normal_(self.tok_head.weight, std=0.02); nn.init.zeros_(self.tok_head.bias)
         nn.init.normal_(self.doc_head.weight, std=0.02); nn.init.zeros_(self.doc_head.bias)
         return self
+
+    load_nano = load_backbone
 
 
 def pack(seqs, device=None, pad_to=None, pad_id=0):

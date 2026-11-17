@@ -6,7 +6,7 @@ voyage-4-nano (Qwen3 layers, 12 layers, hidden 1,024) fine-tuned with a document
 
 ```bash
 export V45_DATA_ROOT=/data18/voyage_4_5_experiments
-M=$V45_DATA_ROOT/data/aidetect/runs/final_v2/model.pt          # fp32 weights, 1.4 GB (the frozen embedding table is most of it)
+M=$V45_DATA_ROOT/data/aidetect/runs/lic2_nano/model.pt          # fp32 weights, 1.4 GB (the frozen embedding table is most of it)
 ~/voyage-4.5/.venv-aid/bin/python aidetect/predict.py --model $M --file doc.txt --html heat.html --json out.json            # CPU, fp32
 ~/voyage-4.5/.venv-aid/bin/python aidetect/predict.py --model $M --file doc.txt --quant 2 --html heat.html                  # CPU, int8 (about 2x faster, same scores)
 ```
@@ -22,13 +22,18 @@ r["words"]                                     # [(start_char, end_char, P(AI)),
 
 Texts longer than 1,024 tokens are scored in 1,024-token windows. Calibration differs between domains (see the report, Sec. 4); pick the threshold on human text from your domain rather than relying on 0.5.
 
+## Licensing
+
+Only commercially usable data and weights are used (audit table: `reports/00_ai_text_detector.html` Table 1; machine-readable: `licensed/license_audit.json` under the data root, written by `aidetect/12_licensed_data.py` and `aidetect/14_audit_extra.py`). Rule: keep text whose rights trace to an explicit commercial-use licence (public domain, CC0, CC BY, CC BY-SA, MIT, Apache-2.0, Open Parliament Licence, per-row licences); drop non-commercial, research-only, undeclared and scraped third-party text even if an aggregate card says MIT or Apache; drop machine text from generators with non-commercial weights. Kept: Common Pile subsets (Stack Exchange, arXiv abstracts, PubMed Central CC BY, Gutenberg, pre-1929 books, UK Hansard, Foodista; 2017 or earlier), RAID books / wiki / abstracts without MPT-30B-Chat text, MAGE SQuAD domain without OPT / LLaMA-1 / GLM-130B text, Heterogeneous AI Spans without JMLR, TextSight 2026, WasItAIGenerated rows licensed CC BY 4.0 or MIT, and AI text generated here with Qwen3, Mistral-7B-Instruct-v0.3, Phi-4-mini, OLMo-2 and SmolLM3 (Apache-2.0 / MIT). Dropped: M4GT / COLING-2025, SemEval-2024-8, HC3, RoFT, the Reddit / news / review / poem / recipe parts of RAID and MAGE, and more (see the table). Backbones: voyage-4-nano and Qwen3 (Apache-2.0). CC BY-SA text carries attribution and share-alike duties. This is an engineering audit, not legal advice.
+
 ## Files (run in this order)
 
 | file | purpose |
 |---|---|
-| `00_download.py` | RAID, MAGE, RoFT, COLING-2025 (M4GT), SemEval-2024-8, HC3 into `$V45_DATA_ROOT/data/aidetect/raw` |
-| `01_prep.py [--full] [--bal]` | training mixtures and eval sets (`--full`: also train on RAID's held-out generators/domains/attacks; `--bal`: balance human/AI inside each source domain) |
-| `02_tokenize.py [--full] [--bal]` | token ids, per-token soft labels |
+| `00_download.py`, `12_licensed_data.py` | download the licensable sources, filter them into `$V45_DATA_ROOT/data/aidetect/licensed/` and write the licence audit |
+| `13_*`, `14_human_corpus.py`, `14_generate.py`, `gen.slurm`, `14_audit_extra.py` | search for openly licensed text, sample human passages from Common Pile, generate AI text with Apache/MIT models (vLLM), extend the audit |
+| `01_prep.py [--full]` | training mixtures and eval sets from the licensed tree (`--full`: also train on RAID's held-out generators / domain / attacks) |
+| `02_tokenize.py [--full]` | token ids, per-token soft labels |
 | `03_train.py` | trainer: packed varlen FlashAttention-3, bf16 autocast, torch.compile, MFU logging, checkpoint/resume |
 | `04_eval.py` | document (AUROC, TPR at 1% / 5% FPR) and word-level (AUROC, F1, IoU, boundary MAE) evaluation |
 | `05_baselines.py` | open-source detectors on the same sets |

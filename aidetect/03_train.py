@@ -103,7 +103,8 @@ def main():
     ap.add_argument("--max_len", type=int, default=1024)
     ap.add_argument("--p_short", type=float, default=0.25)
     ap.add_argument("--causal", type=int, default=0)
-    ap.add_argument("--n_layers", type=int, default=12)
+    ap.add_argument("--n_layers", type=int, default=12, help="layers used from the backbone (12 for voyage-4-nano, 28 for the full Qwen3-0.6B models)")
+    ap.add_argument("--backbone", default="/data/new/prod_models/voyage-4-nano/model.safetensors", help="safetensors file or directory of the starting weights")
     ap.add_argument("--train_emb", type=int, default=0)
     ap.add_argument("--compile", type=int, default=1)
     ap.add_argument("--w_spans", type=float, default=4.0)
@@ -127,7 +128,7 @@ def main():
     torch.backends.cuda.matmul.allow_tf32 = True
     cfg = Cfg(causal=bool(a.causal))
     model = Detector(cfg, a.n_layers or None)
-    model.load_nano()
+    model.load_backbone(a.backbone)
     model.to(dev); model.init_rope(dev); model.train(); model.attn_impl = a.attn
     model.embed.weight.requires_grad_(bool(a.train_emb))
     n_mm = sum(p.numel() for l in model.layers for p in l.parameters() if p.dim() == 2)

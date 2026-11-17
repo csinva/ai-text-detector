@@ -51,6 +51,6 @@ def run(name, prep="prep", tok="tok"):
 
 
 if __name__ == "__main__":
-    suf = ("_full" if "--full" in sys.argv else "") + ("_bal" if "--bal" in sys.argv else "")
+    suf = "_lic2" + ("_full" if "--full" in sys.argv else "")
     for n in [a for a in sys.argv[1:] if not a.startswith("--")] or ["dev", "train"]:
         run(n, "prep" + suf, "tok" + suf)

@@ -12,7 +12,7 @@ from importlib import import_module
 ev = import_module("04_eval")
 
 REPOS = {"desklib": "desklib/ai-text-detector-v1.01", "fakespot": "fakespot-ai/roberta-base-ai-text-detection-v1",
-         "hello": "Hello-SimpleAI/chatgpt-detector-roberta", "openai-large": "openai-community/roberta-large-openai-detector"}
+         "openai-large": "openai-community/roberta-large-openai-detector"}
 
 
 class Desklib(PreTrainedModel):  # architecture of the model card: backbone + mean pooling + linear head
@@ -58,7 +58,7 @@ def score(tok, m, post, texts, bs=64):
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("--out"); ap.add_argument("--models", default="desklib,fakespot,hello,openai-large")
+    ap = argparse.ArgumentParser(); ap.add_argument("--out"); ap.add_argument("--models", default="desklib,fakespot,openai-large")
     ap.add_argument("--sets", default=",".join(ev.DOC_SETS))
     a = ap.parse_args()
     res = json.load(open(a.out)) if a.out and os.path.exists(a.out) else {}  # re-running a subset of models updates the file
@@ -66,9 +66,9 @@ if __name__ == "__main__":
         tok, m, post = load(key)
         res[key] = {}
         for name in a.sets.split(","):
-            df = pd.read_parquet(f"{ev.D}/prep/eval/{name}.parquet")
+            df = pd.read_parquet(f"{ev.D}/prep_lic2/eval/{name}.parquet")
             t0 = time.time(); p = score(tok, m, post, df.text.tolist())
-            res[key][name] = dict(doc=ev.doc_metrics(df.label.values, p), seconds=time.time() - t0)
+            res[key][name] = dict(doc=ev.doc_metrics(df.label.values, p), seconds=time.time() - t0, **ev.breakdown(df, p, skip=name == "spans_test"))
             print(key, name, {k: round(v, 1) for k, v in res[key][name]["doc"].items()}, flush=True)
         del m; torch.cuda.empty_cache()
     if a.out: json.dump(res, open(a.out, "w"), indent=1)

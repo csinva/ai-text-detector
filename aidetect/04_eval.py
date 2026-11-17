@@ -15,9 +15,9 @@ from sklearn.metrics import roc_auc_score, f1_score
 
 sys.path.insert(0, os.path.dirname(__file__))
 D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect")
-DOC_SETS = ["mage_test", "mage_ood_gpt", "mage_ood_gpt_para", "raid_id", "raid_unseen_model", "raid_unseen_domain", "raid_unseen_attack",
-            "raid_unseen_all", "raid_attacks", "semeval_a_test", "hc3", "textsight_2026", "spans_test"]
-WORD_SETS = ["spans_test", "raid_splice", "semeval_c_dev", "semeval_c_test", "roft"]
+DOC_SETS = ["mage_squad_test", "raid_id", "raid_unseen_model", "raid_unseen_domain", "raid_unseen_attack", "raid_unseen_all", "raid_attacks",
+            "textsight_2026", "wasit_2026", "spans_test", "gen_id", "gen_unseen_gen", "gen_unseen_domain", "gen_mixed"]
+WORD_SETS = ["spans_test", "raid_splice", "gen_mixed"]
 
 
 def tpr_at_fpr(y, s, fpr):
@@ -77,12 +77,30 @@ def word_metrics(df, preds):
     return r
 
 
+def breakdown(df, p, skip=False):
+    """per-group metrics: the machine rows of each model / attack / domain value against all human rows of the set (shared threshold)."""
+    out = {}
+    if skip:
+        return out
+    y = df.label.values
+    for col in ["model", "attack", "domain"]:
+        if col in df and df[col].nunique() > 1:
+            sub = {}
+            for g, idx in df.groupby(col).indices.items():
+                mask = np.zeros(len(df), bool); mask[idx] = True
+                if (y[mask] == 1).any() and (col != "model" or g != "human"):
+                    m2 = (mask & (y == 1)) | (y == 0)
+                    sub[g] = doc_metrics(y[m2], p[m2])
+            out[f"by_{col}"] = {k: {kk: vv for kk, vv in v.items() if kk in ("auroc", "tpr1", "recall", "n_ai")} for k, v in sub.items()}
+    return out
+
+
 def run(model, out, device, sets, max_docs, window, n_layers=12, causal=False, quant=0, dtype=None):
     from infer import Predictor
     P = Predictor(model, device=device, window=window, n_layers=n_layers, causal=causal, quant=quant, dtype=dtype)
     res, t_all = {}, time.time()
     for name in sets:
-        df = pd.read_parquet(f"{D}/prep/eval/{name}.parquet")
+        df = pd.read_parquet(f"{D}/prep_lic2/eval/{name}.parquet")
         if max_docs and len(df) > max_docs: df = df.sample(max_docs, random_state=0)
         need_words = name in WORD_SETS
         t0 = time.time()
@@ -92,17 +110,7 @@ def run(model, out, device, sets, max_docs, window, n_layers=12, causal=False, q
         if name in DOC_SETS:
             p = np.array([x["doc_prob"] for x in df.assign(_=0).index.map(lambda i: preds[df.index.get_loc(i)])])
             r["doc"] = doc_metrics(df.label.values, p)
-            for col in ["model", "attack", "domain"]:
-                if col in df and df[col].nunique() > 1 and name != "spans_test":
-                    sub = {}
-                    h = df.label.values == 0
-                    for g, idx in df.groupby(col).indices.items():
-                        mask = np.zeros(len(df), bool); mask[idx] = True
-                        if (df.label.values[mask] == 1).any() and col != "model" or col == "model" and g != "human":
-                            # machine rows of this group against all human rows of the set (shared threshold)
-                            m2 = mask & (df.label.values == 1) | h
-                            sub[g] = doc_metrics(df.label.values[m2], p[m2])
-                    r[f"by_{col}"] = {k: {kk: vv for kk, vv in v.items() if kk in ("auroc", "tpr1", "recall", "n_ai")} for k, v in sub.items()}
+            r.update(breakdown(df, p, skip=name == "spans_test"))
         if need_words:
             r["word"] = word_metrics(df, preds)
             if name == "spans_test":  # fraction-of-AI-words estimate versus truth, for mixed docs
