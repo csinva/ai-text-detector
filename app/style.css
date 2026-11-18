@@ -74,8 +74,6 @@ button{font:inherit;font-size:.86rem;cursor:pointer;color:var(--ink)}
 button.ghost{border:1px solid var(--line);background:rgba(255,255,255,.06);border-radius:10px;padding:.32rem .8rem;transition:background .15s,transform .1s}
 button.ghost:hover{background:rgba(255,255,255,.12)} button.ghost:active{transform:scale(.97)}
 button.link{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;text-underline-offset:2px;font-size:inherit}
-.tip{position:fixed;z-index:20;pointer-events:none;background:#2a2927;border:1px solid var(--line);color:var(--ink);font:600 .74rem/1 var(--sans);padding:.38rem .55rem;border-radius:8px;opacity:0;transform:translate(-50%,-130%);transition:opacity .12s;box-shadow:0 6px 18px rgba(0,0,0,.5);white-space:nowrap}
-.tip.on{opacity:1}
 details.about summary{cursor:pointer;font-weight:650}
 details.about p,details.about li{color:var(--soft);font-size:.92rem}
 @media (max-width:560px){.num span{font-size:3.4rem}.mirror,.editor textarea{font-size:1.05rem;padding:.85rem .95rem}.card{padding:1rem}}
