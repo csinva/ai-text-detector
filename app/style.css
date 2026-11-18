@@ -80,3 +80,5 @@ details.about summary{cursor:pointer;font-weight:650}
 details.about p,details.about li{color:var(--soft);font-size:.92rem}
 @media (max-width:560px){.num span{font-size:3.4rem}.mirror,.editor textarea{font-size:1.05rem;padding:.85rem .95rem}.card{padding:1rem}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+.editor.drop{border-color:var(--accent);box-shadow:0 0 0 4px rgba(139,139,245,.18)}

@@ -6,6 +6,7 @@ Model: a fine-tune of voyage-4-nano (Apache-2.0, https://huggingface.co/voyageai
 
 Bundled third-party code (see the headers of the files):
   ONNX Runtime Web 1.22.0 (ort/), MIT License, Copyright (c) Microsoft Corporation.
+  PDF.js 6.5.438 (pdfjs/), Apache License 2.0, Copyright Mozilla and contributors (pdfjs/LICENSE-pdfjs).
   coi-serviceworker 0.1.7 (coi-serviceworker.js), MIT License, Copyright (c) Guido Zuidhof and contributors.
 
 The vocabulary and merges in model/tokenizer.json are those of the Qwen2/Qwen3 tokenizer shipped with voyage-4-nano (Apache-2.0).

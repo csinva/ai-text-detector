@@ -141,6 +141,49 @@ ta.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key ==
 $("analyze").addEventListener("click", run);
 $("clear").addEventListener("click", () => { ta.value = ""; S.snap = ""; S.probs = new Map(); S.shown = new Map(); onInput(null); ta.focus(); });
 document.querySelectorAll("[data-sample]").forEach((b) => b.addEventListener("click", () => { ta.value = SAMPLES[b.dataset.sample]; onInput({ inputType: "insertFromPaste" }); ta.focus(); }));
+// ---- PDF upload: text is extracted in the browser with PDF.js (loaded on first use); the file is never uploaded
+const PDF_MAX_BYTES = 60 * 1024 * 1024;
+async function pdfToText(file) {
+  const pdfjs = await import("../pdfjs/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("../pdfjs/pdf.worker.min.mjs", import.meta.url).href;
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }), pdf = await task.promise;
+  let out = "";
+  for (let n = 1; n <= pdf.numPages && out.length < MAX_CHARS + 2000; n++) {
+    say(`Reading PDF, page ${n} of ${pdf.numPages}…`);
+    const items = (await (await pdf.getPage(n)).getTextContent()).items.filter((i) => typeof i.str === "string");
+    const lines = []; let cur = "", y = null;
+    for (const it of items) {
+      cur += it.str; if (y === null && it.str.trim()) y = it.transform[5];
+      if (it.hasEOL) { if (cur.trim()) lines.push([cur.trim(), y]); cur = ""; y = null; }
+    }
+    if (cur.trim()) lines.push([cur.trim(), y]);
+    const gaps = lines.slice(1).map((l, k) => Math.abs(lines[k][1] - l[1])).filter((g) => g > 0).sort((p, q) => p - q), typical = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 0;
+    let page = "";
+    lines.forEach(([txt, ly], k) => {
+      if (k === 0) { page = txt; return; }
+      const para = typical && Math.abs(lines[k - 1][1] - ly) > typical * 1.5;
+      if (para) page += "\n\n" + txt; else if (/[A-Za-z]-$/.test(page) && /^[a-z]/.test(txt)) page = page.slice(0, -1) + txt; else page += " " + txt;
+    });
+    if (page) out += (out ? (/[.!?:"”)]$/.test(out) ? "\n\n" : " ") : "") + page;
+  }
+  await task.destroy();
+  return out.replace(/[ \t]+/g, " ").trim();
+}
+async function loadPdf(file) {
+  if (!file || !(file.type === "application/pdf" || /\.pdf$/i.test(file.name))) { say("Please choose a PDF file.", true); return; }
+  if (file.size > PDF_MAX_BYTES) { say("That PDF is larger than 60 MB.", true); return; }
+  try {
+    say("Reading PDF…"); const text = await pdfToText(file);
+    if (text.length < 20) { say("No text found in this PDF. Scanned documents are not supported.", true); return; }
+    ta.value = text; onInput({ inputType: "insertFromPaste" }); ta.focus(); ta.scrollTop = 0;
+    if (text.length <= MAX_CHARS) say("");
+  } catch (err) { console.error(err); say("Could not read that PDF.", true); }
+}
+$("pdf-btn").addEventListener("click", () => $("pdf-input").click());
+$("pdf-input").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; loadPdf(f); });
+["dragenter", "dragover"].forEach((t) => $("editor").addEventListener(t, (e) => { if (e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files")) { e.preventDefault(); $("editor").classList.add("drop"); } }));
+["dragleave", "drop"].forEach((t) => $("editor").addEventListener(t, () => $("editor").classList.remove("drop")));
+$("editor").addEventListener("drop", (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) { e.preventDefault(); loadPdf(f); } });
 $("loader").addEventListener("click", (e) => { if (e.target.id === "clear-cache") worker.postMessage({ type: "clear" }); });
 $("editor").addEventListener("mousemove", (e) => {                     // the textarea is on top, so look through it for the word chip underneath
   const w = document.elementsFromPoint(e.clientX, e.clientY).find((x) => x.classList && x.classList.contains("w") && x.dataset.p);
