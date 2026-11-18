@@ -41,5 +41,5 @@
  "tokenizer": "tokenizer.json",
  "tokenizer_bytes": 4753864,
  "window": 1024,
- "source": "lic5_nano_r15"
+ "source": "voyage-4-nano fine-tuned as an AI-text detector (document and token heads), int8"
 }

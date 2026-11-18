@@ -1,0 +1,11 @@
+AI text detector web app
+
+Model: a fine-tune of voyage-4-nano (Apache-2.0, https://huggingface.co/voyageai/voyage-4-nano) with a token head and a document head, exported to ONNX with int8 weights.
+  The fine-tuning data was restricted to sources that allow commercial use (public domain, CC0, CC BY, CC BY-SA, MIT, Apache-2.0 and per-document open licences), and the AI text was
+  generated with Apache-2.0 or MIT models. This is a description, not legal advice.
+
+Bundled third-party code (see the headers of the files):
+  ONNX Runtime Web 1.22.0 (ort/), MIT License, Copyright (c) Microsoft Corporation.
+  coi-serviceworker 0.1.7 (coi-serviceworker.js), MIT License, Copyright (c) Guido Zuidhof and contributors.
+
+The vocabulary and merges in model/tokenizer.json are those of the Qwen2/Qwen3 tokenizer shipped with voyage-4-nano (Apache-2.0).

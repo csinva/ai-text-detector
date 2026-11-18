@@ -12,14 +12,14 @@ const SAMPLES = {
 const S = { ready: false, sentId: 0, doneId: 0, snap: "", probs: new Map(), timer: null, timerOn: false, lastRun: 0, analyzedWc: 0, lastLen: 0, wantRun: false, shown: new Map(), reveal: false };
 
 // ---- colour scale (the same as the report heatmaps)
-const PROB = [[0, [251, 191, 36, 0]], [0.35, [251, 191, 36, 0.22]], [0.65, [251, 113, 133, 0.5]], [1, [225, 29, 72, 0.82]]];
+const PROB = [[0, [230, 159, 0, 0]], [0.35, [230, 159, 0, 0.3]], [0.7, [230, 159, 0, 0.62]], [1, [213, 94, 0, 0.85]]];
 function colorOf(p) {
   p = Math.min(Math.max(p, 0), 1);
   for (let i = 0; i < PROB.length - 1; i++) {
     const [a, ca] = PROB[i], [b, cb] = PROB[i + 1];
     if (p <= b) { const t = (p - a) / (b - a), c = ca.map((v, k) => v + t * (cb[k] - v)); return `rgba(${c[0].toFixed(0)},${c[1].toFixed(0)},${c[2].toFixed(0)},${c[3].toFixed(2)})`; }
   }
-  return "rgba(225,29,72,.82)";
+  return "rgba(213,94,0,.85)";
 }
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const wordsOf = (t) => Array.from(t.matchAll(/\S+/g), (m) => [m.index, m.index + m[0].length]);

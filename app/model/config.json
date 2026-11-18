@@ -1,1 +1,5 @@
-{"window": 1024, "layers": 12, "source": "lic5_nano_r15"}
+{
+ "window": 1024,
+ "layers": 12,
+ "source": "voyage-4-nano fine-tuned as an AI-text detector (document and token heads), int8"
+}

@@ -1,0 +1,32 @@
+# Publishes app/ (without tools/) to GitHub Pages. Pages must be enabled for the repository first
+# (Settings > Pages > Source: GitHub Actions); until then run this by hand only. Add a push trigger once Pages is on.
+name: Deploy app to GitHub Pages
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble the site
+        run: |
+          mkdir _site
+          rsync -a --exclude tools --exclude README.md --exclude .gitignore app/ _site/
+          touch _site/.nojekyll
+          du -sh _site; find _site -size +95M -print
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
