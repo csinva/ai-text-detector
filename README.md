@@ -44,3 +44,7 @@ Only commercially usable data and weights are used (audit table: `reports/00_ai_
 | `*.slurm` | one-GPU jobs (`train_eval.slurm`, `run.slurm`), CPU jobs (`cpu.slurm`, `cpu_eval.slurm`) |
 
 Environment: `uv venv .venv-aid` with torch 2.8.0, transformers 4.51.3, flash-attn 2.8.3, tokenizers, pandas, pyarrow, scikit-learn. FlashAttention-3 (`flash_attn_interface`, `flash_attn_3`) is copied from the bxjg venv.
+
+
+## Round 4 candidate
+`runs/lic5_nano_r15/model.pt` (human pool 252k passages, 1.5 AI texts per human text, 1.2B tokens) is better than the default `lic3_nano_r10` on WasItAIGenerated (+5.2 AUROC), OpAI-Bench (+4.4), block edits and the new domains, and worse on the commercial-humanizer benchmarks and TextSight. See report Sec. 3.4.

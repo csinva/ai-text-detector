@@ -31,7 +31,8 @@ def main():
     D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect"); G = f"{D}/licensed/gen"
     h = pd.read_parquet(f"{D}/licensed/human_cp.parquet"); h["uid2"] = [f"{s}:{i}" for i, s in zip(h.index, h.src)]
     if os.environ.get("GEN_SRCS"): h = h[h.src.isin(os.environ["GEN_SRCS"].split(","))]  # round 3: only the new sources
-    g = pd.concat([pd.read_parquet(f"{G}/{f}") for f in sorted(os.listdir(G)) if f.endswith(".parquet") and not f.startswith(("smoke", "r2_", "r3_"))])
+    if os.environ.get("GEN_AFTER"): h = h[h.index >= int(os.environ["GEN_AFTER"])]  # round 4: only rows added after this index
+    g = pd.concat([pd.read_parquet(f"{G}/{f}") for f in sorted(os.listdir(G)) if f.endswith(".parquet") and not f.startswith(("smoke", "r2_", "r3_", "r4_"))])
     rng = random.Random(100 + mi); reqs = []  # (mode, task, row dict, prompt, extra, max_new_tokens)
 
     if "std" in modes and a.model in NEW:
@@ -60,6 +61,30 @@ def main():
                 reqs.append(("edit", "edit", dict(src=row.src, uid=row.uid2, i=i),
                              "Rewrite the sentence below in different words, keeping its meaning and a similar length. Output only the rewritten sentence, on one line.\n\n" + (f"Previous sentence (context only): {ctx}\n\n" if ctx else "") + f"Sentence: {pieces[i].strip()}",
                              None, 90))
+    block_meta = {}
+    if "block" in modes:  # round 4: OpAI-style operations on sentence blocks at 10-100% coverage (polish, paraphrase, style, compress, expand)
+        OPS = {"polish": "Polish the following passage: fix awkward phrasing and improve flow and clarity while keeping the structure and every fact. Output only the revised passage.\n\n{t}",
+               "paraphrase": "Paraphrase the following passage in your own words, keeping all facts and the length about the same. Output only the paraphrase.\n\n{t}",
+               "style": "Rewrite the following passage in a {sty} style, keeping all facts. Output only the rewritten passage.\n\n{t}",
+               "compress": "Condense the following passage to about two thirds of its length, keeping the key facts. Output only the condensed passage.\n\n{t}",
+               "expand": "Expand the following passage with a little more detail and elaboration, up to about one and a half times its length, without changing the facts. Output only the expanded passage.\n\n{t}"}
+        STY = ["more formal and academic", "more conversational and fluent", "concise and professional", "polished journalistic"]
+        sub = h[[hv(u, "block") % 100 < 50 and hv(u, "blockgen") % len(ORDER) == mi for u in h.uid2]]
+        for row in sub.head(a.limit or len(sub)).itertuples():
+            pieces = PIECE.findall(row.text)
+            if len(pieces) < 4: continue
+            blocks, i = [], 0
+            while i < len(pieces):
+                k = rng.randint(1, 4); blocks.append((i, min(len(pieces), i + k))); i += k
+            cov = rng.choice([0.1, 0.2, 0.3, 0.45, 0.6, 0.8, 1.0]); op = rng.choice(list(OPS)); tot = sum(len(x) for x in pieces); pick, acc = [], 0
+            for b in rng.sample(range(len(blocks)), len(blocks)):
+                if acc >= cov * tot: break
+                pick.append(b); acc += sum(len(x) for x in pieces[blocks[b][0]:blocks[b][1]])
+            block_meta[row.uid2] = (row.src, pieces, blocks, sorted(pick), op)
+            for b in pick:
+                seg = "".join(pieces[blocks[b][0]:blocks[b][1]]).strip()
+                if len(seg) < 60: continue
+                reqs.append(("block", "block_" + op, dict(src=row.src, uid=row.uid2, i=b), OPS[op].format(t=seg, sty=rng.choice(STY)), None, min(900, int(len(seg.split()) * 2.2) + 60)))
     print(a.model, "requests", pd.Series([r[0] for r in reqs]).value_counts().to_dict(), flush=True)
     if not reqs: return
     from vllm import LLM, SamplingParams
@@ -79,13 +104,16 @@ def main():
         t = re.sub(r"<think>.*?</think>", "", t, flags=re.S).strip(); t = g1.PRE.sub("", t).strip()
         return None if ("<think>" in t or "As an AI" in t or not t) else t
 
-    rows, edits = [], {}
+    rows, edits, blocks_out = [], {}, {}
     for (mode, task, meta, prompt, prefix, _), o in zip(reqs, outs):
         t = clean(o)
         if t is None: continue
         if mode == "edit":
             t = " ".join(t.split())
             if 15 <= len(t) <= 400: edits.setdefault(meta["uid"], {})[meta["i"]] = t
+            continue
+        if mode == "block":
+            if len(t) >= 30: blocks_out.setdefault(meta["uid"], {})[meta["i"]] = t.strip()
             continue
         if len(t) < 120: continue
         if prefix is not None:
@@ -102,6 +130,16 @@ def main():
             else:
                 out.append(p); pos += len(p)
         if spans: rows.append(dict(text="".join(out), spans=spans, src=src, task="edit", gen_model=GENS[a.model], uid=uid, mode="edit"))
+    for uid, rep in blocks_out.items():
+        src, pieces, blocks, pick, op = block_meta[uid]; out, spans, pos = [], [], 0
+        for b, (x0, x1) in enumerate(blocks):
+            seg = "".join(pieces[x0:x1])
+            if b in rep:
+                tail = seg[len(seg.rstrip()):]; new = rep[b] + tail
+                spans.append([pos, pos + len(rep[b])]); out.append(new); pos += len(new)
+            else:
+                out.append(seg); pos += len(seg)
+        if spans: rows.append(dict(text="".join(out), spans=spans, src=src, task="block_" + op, gen_model=GENS[a.model], uid=uid, mode="block"))
     df = pd.DataFrame(rows)
     for mode, x in df.groupby("mode"): x.to_parquet(f"{G}/r2_{a.tag}_{mode}.parquet")
     print("saved", df.groupby("mode").size().to_dict(), flush=True)

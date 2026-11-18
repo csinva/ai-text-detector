@@ -16,8 +16,8 @@ from sklearn.metrics import roc_auc_score, f1_score
 sys.path.insert(0, os.path.dirname(__file__))
 D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect")
 DOC_SETS = ["mage_squad_test", "raid_id", "raid_unseen_model", "raid_unseen_domain", "raid_unseen_attack", "raid_unseen_all", "raid_attacks",
-            "textsight_2026", "wasit_2026", "spans_test", "gen_id", "gen_unseen_gen", "gen_unseen_domain", "gen_mixed", "gen_humanized", "gen_edit", "gen_newgen"]
-WORD_SETS = ["spans_test", "raid_splice", "gen_mixed", "gen_edit", "gen_humanized"]
+            "textsight_2026", "wasit_2026", "spans_test", "gen_id", "gen_unseen_gen", "gen_unseen_domain", "gen_mixed", "gen_humanized", "gen_edit", "gen_newgen", "opai_doc", "gen_block"]
+WORD_SETS = ["spans_test", "raid_splice", "gen_mixed", "gen_edit", "gen_humanized", "opai_spans", "gen_block"]
 
 
 def tpr_at_fpr(y, s, fpr):
@@ -103,6 +103,7 @@ def run(model, out, device, sets, max_docs, window, n_layers=12, causal=False, q
     P = Predictor(model, device=device, window=window, n_layers=n_layers, causal=causal, quant=quant, dtype=dtype)
     res, t_all = {}, time.time()
     for name in sets:
+        if not os.path.exists(f"{D}/{PREP}/eval/{name}.parquet"): print("skip (no data)", name); continue
         df = pd.read_parquet(f"{D}/{PREP}/eval/{name}.parquet")
         if max_docs and len(df) > max_docs: df = df.sample(max_docs, random_state=0)
         need_words = name in WORD_SETS

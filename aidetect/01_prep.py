@@ -173,6 +173,7 @@ def main():
     # round 2: humanizer-style rewrites, sentence-level edits, and the newest generators (the held-out model never trains on qwen3_30b)
     gen_set("gen_humanized", lambda x: ~x.src.isin(H_SRC), lambda x: x.task.str.startswith("humanize_") & ~x.src.isin(H_SRC), cap=1500)
     gen_set("gen_edit", lambda x: ~x.src.isin(H_SRC), lambda x: (x.task == "edit") & ~x.src.isin(H_SRC), cap=2000)
+    gen_set("gen_block", lambda x: ~x.src.isin(H_SRC), lambda x: x.task.str.startswith("block_") & ~x.src.isin(H_SRC), cap=2000)
     gen_set("gen_newgen", lambda x: ~x.src.isin(H_SRC), lambda x: R1(x) & x.gen_model.isin(["gptoss20b", "qwen3_30b"]) & ~x.src.isin(H_SRC), cap=1500)
 
     m_te = pd.read_parquet(f"{LIC}/mage_squad_test.parquet"); m_te["label"] = 1 - m_te.label  # MAGE: 1 = human
