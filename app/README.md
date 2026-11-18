@@ -2,7 +2,7 @@
 
 A static page that runs the detector in the browser. Type or paste text and the text lights up as it is read: the heat map is drawn on the words you type, and it updates when you pause, finish a few words or paste. Words waiting for the model shimmer, and a light sweeps across them as they are scored. The text never leaves the device.
 
-This folder is the whole site; `.github/workflows/pages.yml` publishes it (without `tools/`) to GitHub Pages.
+**Live:** https://csinva.io/ai-text-detector/ (https://csinva.github.io/ai-text-detector/ redirects there). This folder is the whole site; `.github/workflows/pages.yml` publishes it (without `tools/`) to GitHub Pages.
 
 - **Runtime.** [ONNX Runtime Web](https://onnxruntime.ai/) (WebAssembly, SIMD, threads). The task asked for WebLLM, but WebLLM only runs chat LLMs compiled to the MLC format (token generation, causal attention); this model is a bidirectional classifier with a token head and a document head, so it is exported to ONNX instead. The user experience is the same: a progress bar on the first visit, then the model is reused from the browser.
 - **Model.** The round-4 model (`runs/lic5_nano_r15`), exported by `tools/export_onnx.py`: `model/detector.onnx.part000..006` (7 shards of at most 48 MB, GitHub Pages rejects files over 100 MB; 347 MB in total) plus `model/tokenizer.json` (4.8 MB) and `model/manifest.json` (sizes, sha256, version). int8 weights; matches the fp32 torch model (document logit correlation 0.998, word probability correlation 0.996, AUROC within 0.7 points).

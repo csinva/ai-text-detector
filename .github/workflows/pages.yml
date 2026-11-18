@@ -1,7 +1,9 @@
-# Publishes app/ (without tools/) to GitHub Pages. Pages must be enabled for the repository first
-# (Settings > Pages > Source: GitHub Actions); until then run this by hand only. Add a push trigger once Pages is on.
+# Publishes app/ (without tools/) to GitHub Pages (Settings > Pages > Source: GitHub Actions) on every push that touches app/.
 name: Deploy app to GitHub Pages
 on:
+  push:
+    branches: [main]
+    paths: ["app/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 permissions:
   contents: read

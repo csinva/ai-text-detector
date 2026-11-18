@@ -4,6 +4,8 @@ voyage-4-nano (Qwen3 layers, 12 layers, hidden 1,024) fine-tuned with a document
 
 ## Use
 
+**Try it in the browser:** https://csinva.io/ai-text-detector/ (the model runs locally in the page; source in `app/`). Reports: `reports/00_data.html`, `01_runs.html`, `02_demo.html`.
+
 ```bash
 export V45_DATA_ROOT=/data18/voyage_4_5_experiments
 M=$V45_DATA_ROOT/data/aidetect/runs/lic3_nano_r10/model.pt          # fp32 weights, 1.4 GB (the frozen embedding table is most of it)
