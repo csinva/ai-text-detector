@@ -2,7 +2,7 @@
 // The text is re-read a moment after you pause (or after a few finished words, or at once on paste); words waiting for the model shimmer and a light sweeps across them as they are scored.
 const $ = (id) => document.getElementById(id);
 const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
-const ta = $("input"), mirror = $("mirror"), tip = $("tip"), MIN_WORDS = 6;
+const ta = $("input"), mirror = $("mirror"), tip = $("tip"), MIN_WORDS = 1;
 const SAMPLES = {
   human: "Call me Ishmael. Some years ago, never mind how long precisely, having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world. It is a way I have of driving off the spleen and regulating the circulation. Whenever I find myself growing grim about the mouth, whenever it is a damp, drizzly November in my soul, then I account it high time to get to sea as soon as I can.",
   ai: "Artificial intelligence has become an increasingly important topic in modern society, influencing a wide range of industries and aspects of daily life. In today's rapidly evolving technological landscape, it is essential to understand both the opportunities and the challenges that AI presents. On the one hand, AI-powered tools can enhance productivity, streamline complex workflows, and unlock new insights from large datasets. On the other hand, they raise important questions about privacy, fairness, and accountability. Ultimately, a balanced approach that leverages the benefits of AI while addressing its risks will be crucial for building a more equitable and sustainable future.",
@@ -103,7 +103,7 @@ worker.onmessage = (e) => {
   else if (m.type === "result") {
     if (m.id !== S.sentId) return;                                  // an older text: a newer one is already on its way
     S.doneId = m.id; apply(m); const flagged = m.words.filter((w) => w[2] > 0.5).length;
-    setScore(m.docProb, `${label(m.docProb)} · ${m.words.length ? Math.round(100 * flagged / m.words.length) : 0}% of words flagged`); setMap(m.words); render();
+    setScore(m.docProb, m.words.length < 6 ? `${label(m.docProb)} · very short text, low confidence` : `${label(m.docProb)} · ${Math.round(100 * flagged / m.words.length)}% of words flagged`); setMap(m.words); render();
     setStatus("ready", `Read ${m.tokens} tokens in ${m.ms < 1000 ? Math.round(m.ms) + " ms" : (m.ms / 1000).toFixed(1) + " s"}${m.cachedWindows ? " (part reused)" : ""}`);
     say(m.truncated ? "The text was cut to its first 30,000 characters." : m.tokens < 60 ? "Short text: keep writing for a steadier score." : "", m.truncated); window.__lastResult = m;
     if (ta.value.slice(0, 30000).normalize("NFC") !== m.text) run();               // changed while reading
