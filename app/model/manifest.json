@@ -1,0 +1,45 @@
+{
+ "version": "befbc482c694",
+ "total_bytes": 347182967,
+ "parts": [
+  {
+   "name": "detector.onnx.part000",
+   "bytes": 50331648,
+   "sha256": "cf57fcd2ccc70a8b10ac3aea507389b26f3f8c8e0f8e64edb9f534ee2cbc2d91"
+  },
+  {
+   "name": "detector.onnx.part001",
+   "bytes": 50331648,
+   "sha256": "4a4431b94138bacb21b5de5cc8ff6bdab98e69a3cae4202d89cd78ffbd9545ea"
+  },
+  {
+   "name": "detector.onnx.part002",
+   "bytes": 50331648,
+   "sha256": "b51cf68b23c26d32132d5d01d89224f5e98e269fd5dcf828617afe38bf2fcd15"
+  },
+  {
+   "name": "detector.onnx.part003",
+   "bytes": 50331648,
+   "sha256": "ddb00ffde222527ae9b87dde9abc3eb646c77d1c5ba50283460fd4f9fd506e72"
+  },
+  {
+   "name": "detector.onnx.part004",
+   "bytes": 50331648,
+   "sha256": "c2b28dcd539e93d14829eeb670ae5fb0d73fe92b2e235888cd91d67df231ed1d"
+  },
+  {
+   "name": "detector.onnx.part005",
+   "bytes": 50331648,
+   "sha256": "649a38e091f30d216ffc7b12b077afa0898e0c87973b31b3cd51987b9a17b5e2"
+  },
+  {
+   "name": "detector.onnx.part006",
+   "bytes": 45193079,
+   "sha256": "5ac96d45cb1cea51a1eef651cbd4168178a1f33477a527199426fc92223ec2d6"
+  }
+ ],
+ "tokenizer": "tokenizer.json",
+ "tokenizer_bytes": 4753864,
+ "window": 1024,
+ "source": "lic3_nano_r10"
+}

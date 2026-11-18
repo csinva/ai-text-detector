@@ -183,8 +183,8 @@ def fig_speed():
     pts = []
     for key, lab, c in (("desklib", "desklib", COL["desklib"]), ("fakespot", "Fakespot", COL["fakespot"]), ("openai-large", "OpenAI RoBERTa-large", COL["openai-large"])):
         pts.append((key, lab, spd(key, "fp32"), metrics_of(key), c, True))
-    m = metrics_of("ours"); m15 = metrics_of("ours15")
-    pts += [("ours", "ours, int8", spd("nano", "int8"), m, COL["ours"], True), ("ours", "ours, fp32", spd("nano", "fp32"), m, COL["ours"], False), ("ours15", "ours (round 4), int8", spd("nano", "int8"), m15, COL["ours"], None)]
+    m = metrics_of("ours15")      # the round-4 model; int8 is the deployed setting, fp32 (hollow) has the same accuracy
+    pts += [("ours15", "ours, int8", spd("nano", "int8"), m, COL["ours"], True)]
     W, H, Lm, Rm, Tm, Bm = 308, 250, 40, 8, 30, 44; x0, x1 = math.log10(0.05), math.log10(20)
     X = lambda v: Lm + (math.log10(v) - x0) / (x1 - x0) * (W - Lm - Rm)
     panels = ["Mean AUROC, 17 held-out sets", "Mean AUROC, TextSight + WasIt (2026)", "AUROC, OpAI-Bench"]; out = ""
@@ -201,36 +201,38 @@ def fig_speed():
             off = mm[k] < lo; yv = max(mm[k], lo); cx, cy = X(sp), Y(yv); st = f"fill='{c}'" if fill else f"fill='white' stroke='{c}' stroke-width='1.6'"
             if fill is None: st = f"fill='{c}' fill-opacity='.35' stroke='{c}' stroke-width='1.6'"
             g += f"<circle cx='{cx:.1f}' cy='{cy:.1f}' r='{5 if key.startswith('ours') else 4.5}' {st}><title>{lab}: {mm[k]:.1f} AUROC, {sp:.2f} s</title></circle>"
-            if lab in ("ours, int8", "desklib", "Fakespot", "OpenAI RoBERTa-large"):
-                txt = ("ours" if lab == "ours, int8" else "OpenAI" if lab.startswith("OpenAI") else lab) + (f" ({mm[k]:.0f}, below axis)" if off else "")
-                g += f"<text x='{cx + (7 if sp < 2 else -7):.1f}' y='{(cy + 16 if lab == 'ours, int8' else cy - 8):.1f}' text-anchor='{'start' if sp < 2 else 'end'}' class=ft>{txt}</text>"
+            if off: g += f"<text x='{cx + 8:.1f}' y='{cy - 6:.1f}' class=ft>&#8595; {mm[k]:.0f}</text>"
         out += f"<svg viewBox='0 0 {W} {H}' role=img aria-label='{title}'>{g}</svg>"
-    css = "<style>.fl{font:600 12px sans-serif;fill:var(--text-1)} .ft{font:11px sans-serif;fill:var(--text-2)} .fg{stroke:var(--border);stroke-width:1} .sp{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:4px} .sp svg{width:100%;height:auto}</style>"
-    return (f"{css}<figure id=fig-1 style='margin:12px 0;padding:0'><div class=sp>{out}</div><figcaption style='font-size:.85rem;font-weight:400'><b>Figure 1.</b> Accuracy against CPU cost. Filled dots are the deployed setting: ours in int8, baselines in fp32; the hollow dot is ours in fp32 and the faded dot is the round-4 candidate (same speed). "
+    css = ("<style>.fl{font:600 12px sans-serif;fill:var(--text-1)} .ft{font:11px sans-serif;fill:var(--text-2)} .fg{stroke:var(--border);stroke-width:1} .fw{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap} .sp{flex:1 1 640px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px} .sp svg{width:100%;height:auto} "
+           ".lg{flex:0 0 190px;font-size:.8rem;line-height:1.35;padding-top:28px} .lg div{display:flex;gap:7px;align-items:flex-start;margin-bottom:9px} .lg svg{flex:0 0 14px;margin-top:2px} .lg small{display:block;color:var(--text-3)}</style>")
+    mk = lambda c, fill: (f"<svg width=14 height=14 viewBox='0 0 14 14'><circle cx=7 cy=7 r=5 fill='{c}' /></svg>" if fill is True else f"<svg width=14 height=14 viewBox='0 0 14 14'><circle cx=7 cy=7 r=5 fill='white' stroke='{c}' stroke-width='1.6' /></svg>" if fill is False else f"<svg width=14 height=14 viewBox='0 0 14 14'><circle cx=7 cy=7 r=5 fill='{c}' fill-opacity='.35' stroke='{c}' stroke-width='1.6' /></svg>")
+    ent = [(COL["ours"], True, "Ours, int8", "round-4 model (1.5:1)"), (COL["desklib"], True, "desklib v1.01", "DeBERTa-v3-large, fp32"), (COL["fakespot"], True, "Fakespot", "RoBERTa-base, fp32"), (COL["openai-large"], True, "OpenAI RoBERTa-large", "fp32; an arrow marks a point below the axis")]
+    legend = "<div class=lg>" + "".join(f"<div>{mk(c, f)}<span><b>{t}</b><small>{d_}</small></span></div>" for c, f, t, d_ in ent) + "</div>"
+    return (f"{css}<figure id=fig-1 style='margin:12px 0;padding:0'><div class=fw><div class=sp>{out}</div>{legend}</div><figcaption style='font-size:.85rem;font-weight:400'><b>Figure 1.</b> Accuracy against CPU cost. Ours is plotted in int8 (the deployed setting; fp32 has the same accuracy and takes longer, <a href='#tab-1'>Table 1</a>); baselines in fp32. "
             "Accuracy for ours is the GPU evaluation (int8 accuracy was checked on a 400-document subsample of every set, see the CPU details under <a href='#sec-3'>Sec. 3</a>); baselines were run in fp16 on GPU with 512-token truncation. Left: the 17 held-out sets, which include three sets drawn from the training distribution of our model. Middle: the two 2026 sets that no model trained on. Right: OpAI-Bench test. "
             "Baselines return a document score only; ours also returns a word-level heatmap in the same pass.</figcaption></figure>")
 
 
 def tab_main():
     rows = ""
-    ref = {"m": metrics_of("ours")}
-    order = [("ours", "Ours (final, round 2)"), ("ours15", "Ours (round 4, 1.5:1)"), ("desklib", "desklib v1.01"), ("fakespot", "Fakespot RoBERTa-base"), ("openai-large", "OpenAI RoBERTa-large")]
+    ref = {"m": metrics_of("ours15")}
+    order = [("ours15", "Ours (round 4)"), ("desklib", "desklib v1.01"), ("fakespot", "Fakespot RoBERTa-base"), ("openai-large", "OpenAI RoBERTa-large")]
     for key, lab in order:
         mm = metrics_of(key); mref = ref["m"]
         sp = (spd("nano", "int8"), spd("nano", "fp32")) if key.startswith("ours") else (spd(key, "int8"), spd(key, "fp32"))
-        hr = (hum_ref if key == "ours" else hum_r15 if key == "ours15" else None)
+        hr = hum_r15 if key == "ours15" else None
         h1 = 100 * hr["all"]["outputs"]["recall@1"] if hr else (100 * bhum[key]["outputs"]["recall@1"] if key in bhum else float("nan"))
-        h1 = "n/a" if np.isnan(h1) else (f"{h1:.1f}" if key == "ours" else d(h1, 100 * hum_ref["all"]["outputs"]["recall@1"]))
-        cell = lambda v, r_: ("n/a" if np.isnan(v) else (f"{v:.1f}" if key == "ours" else d(v, r_)))
+        h1 = "n/a" if np.isnan(h1) else (f"{h1:.1f}" if key == "ours15" else d(h1, 100 * hum_r15["all"]["outputs"]["recall@1"]))
+        cell = lambda v, r_: ("n/a" if np.isnan(v) else (f"{v:.1f}" if key == "ours15" else d(v, r_)))
         wd = ""
         if key.startswith("ours"):
-            rr = res[REF] if key == "ours" else r15
+            rr = r15
             wd = f"{get(rr, 'spans_test', 'word_auroc', 'word'):.1f} / {get(rr, 'opai_spans', 'word_auroc', 'word'):.1f}" if rr else ""
         else: wd = "no word output"
         rows += (f"<tr><td>{lab}</td><td>{PARAMS['nano'] if key.startswith('ours') else PARAMS[key]}</td><td>{sp[0]:.2f} / {sp[1]:.2f}</td><td>{cell(mm[0], mref[0])}</td><td>{cell(mm[1], mref[1])}</td><td>{cell(mm[2], mref[2])}</td><td>{h1}</td><td>{wd}</td></tr>")
     h = ("<tr><th>Detector</th><th>Backbone (matmul params)</th><th>CPU s per doc, int8 / fp32</th><th>Mean AUROC, 17 held-out sets</th><th>Mean AUROC, TextSight and WasIt</th><th>AUROC, OpAI-Bench</th>"
          "<th>Humanizer recall at 1% FPR (%)</th><th>Word AUROC, Spans / OpAI</th></tr>")
-    return (f"<div class=wide><table id=tab-1><caption style='text-align:left'><b>Table 1.</b> Our detector against the comparison detectors. Differences are to the final model. CPU time is one 512-token document on 8 cores of an Intel Xeon Platinum 8468V (dynamic int8 quantization of the linear layers for the baselines, accuracy not re-evaluated; ours quantizes all but the MLP down projections and heads, accuracy checked). "
+    return (f"<div class=wide><table id=tab-1><caption style='text-align:left'><b>Table 1.</b> Our detector against the comparison detectors. Differences are to our model. CPU time is one 512-token document on 8 cores of an Intel Xeon Platinum 8468V (dynamic int8 quantization of the linear layers for the baselines, accuracy not re-evaluated; ours quantizes all but the MLP down projections and heads, accuracy checked). "
             f"Humanizer recall uses a threshold at 1% FPR on 2,216 pooled human texts ([sets](#tab-d)). The 17 sets are listed in the data report; three of them come from our training distribution.</caption>{h}{rows}</table></div>").replace("([sets](#tab-d))", "(3,610 outputs of 19 commercial tools)")
 
 
@@ -537,7 +539,7 @@ DATA_JOB = re.compile(r"gen|hm-|human|prep|search|download", re.I)
 
 def head(t):
     return (f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>{t}</title><link rel=stylesheet href='theme.css'>{CSS}</head><body>"
-            "<nav class=topnav><a href='index.html'>&larr; All reports</a> &middot; <a href='00_data.html'>00 Data</a> &middot; <a href='01_runs.html'>01 Runs</a></nav>")
+            "<nav class=topnav><a href='index.html'>&larr; All reports</a> &middot; <a href='00_data.html'>00 Data</a> &middot; <a href='01_runs.html'>01 Runs</a> &middot; <a href='02_demo.html'>02 Demo</a></nav>")
 
 
 def main():
@@ -648,25 +650,25 @@ def main():
     cur[0] = P1
     strip = lambda xs: re.sub(r"<h[23] id=[^>]+>.*?</h[23]>", "", "\n".join(xs))
     det = lambda title, body, op=False: f"<details{' open' if op else ''}><summary>{title}</summary>{body}</details>"
-    mo, m15 = metrics_of("ours"), metrics_of("ours15"); bb_ = {k: metrics_of(k) for k in BASES}
-    bestb = max(bb_, key=lambda k: bb_[k][0]); bests = max(bb_, key=lambda k: bb_[k][1]); sp8 = spd("nano", "int8"); spb = spd(bestb, "fp32")
+    mo = metrics_of("ours15"); bb_ = {k: metrics_of(k) for k in BASES}      # headline model: round 4 (1.5 AI texts per human text)
+    bestb = max(bb_, key=lambda k: bb_[k][0]); sp8 = spd("nano", "int8"); r4w = lambda st, m_="word_auroc": get(r15, st, m_, "word"); hr4 = hum_r15["all"]["outputs"]
     P1[:] = P1[:2]
-    A(f"<p class=box><b>Summary.</b> A voyage-4-nano detector with a document head and a per-token head (word-level heatmap), trained on commercially licensed data only. "
-      f"It reaches mean AUROC {mo[0]:.1f} on {len(DOC)} held-out sets (best baseline {BASES[bestb]}: {bb_[bestb][0]:.1f}), but three of those sets come from its training distribution. On the two 2026 sets that no model trained on it is level with the baselines, not ahead: "
-      f"{mo[1]:.1f} mean AUROC against {max(v[1] for v in bb_.values()):.1f} for the best baseline; on OpAI-Bench {mo[2]:.1f} against {np.nanmax([v[2] for v in bb_.values()]):.1f}. It catches {100 * hum_ref['all']['outputs']['recall@1']:.0f}% of commercial-humanizer outputs at 1% FPR (desklib {100 * bhum['desklib']['outputs']['recall@1'] if bhum else float('nan'):.0f}%, Fakespot {100 * bhum['fakespot']['outputs']['recall@1'] if bhum else float('nan'):.0f}%). "
+    A(f"<p class=box><b>Summary.</b> A voyage-4-nano detector with a document head and a per-token head (word-level heatmap), trained on commercially licensed data only (round-4 model; earlier rounds are in <a href='#sec-4'>Sec. 4</a>). "
+      f"It reaches mean AUROC {mo[0]:.1f} on {len(DOC)} held-out sets (best baseline {BASES[bestb]}: {bb_[bestb][0]:.1f}), but three of those sets come from its training distribution. On the two 2026 sets that no model trained on, it is level with the best baseline: "
+      f"{mo[1]:.1f} mean AUROC against {max(v[1] for v in bb_.values()):.1f}; on OpAI-Bench {mo[2]:.1f} against {np.nanmax([v[2] for v in bb_.values()]):.1f}. It catches {100 * hr4['recall@1']:.0f}% of commercial-humanizer outputs at 1% FPR (desklib {100 * bhum['desklib']['outputs']['recall@1'] if bhum else float('nan'):.0f}%, Fakespot {100 * bhum['fakespot']['outputs']['recall@1'] if bhum else float('nan'):.0f}%). "
       f"What it adds is a word-level heatmap from the same pass at the cost of a base-size model: {sp8:.2f} s per 512-token document in int8 on 8 CPU cores, {spd(bestb, 'int8') / sp8:.0f}x faster than {BASES[bestb]} in int8 and about as fast as Fakespot RoBERTa-base ({spd('fakespot', 'int8'):.2f} s, document score only). "
-      f"Weak spots: WasItAIGenerated ({get(res[REF], 'wasit_2026', 'auroc'):.1f}), OpAI-Bench and informal or edited human text. Four rounds of data and training changes gave small gains on external sets; the round-4 recipe (252k human passages, 1.5 AI texts per human text) is better on WasIt and OpAI-Bench and worse on humanizer recall (<a href='#sec-4'>Sec. 4</a>). Generated {stamp} UTC.</p>")
+      f"Weak spots: WasItAIGenerated ({get(r15, 'wasit_2026', 'auroc'):.1f}), OpAI-Bench, commercial-humanizer text and informal or edited human text. Generated {stamp} UTC.</p>")
     A(fig_speed()); A(tab_main())
     A("<h2 id=sec-1>1. Main results</h2><ul>"
-      f"<li><b>Accuracy.</b> On the held-out sets that include our training distribution the detector reaches {mo[0]:.1f} mean AUROC; the open detectors reach {', '.join(f'{BASES[k]} {bb_[k][0]:.1f}' for k in bb_)}. On the two 2026 sets that no model trained on, the baselines are level or slightly ahead: ours {get(res[REF], 'textsight_2026', 'auroc'):.1f} (TextSight) and {get(res[REF], 'wasit_2026', 'auroc'):.1f} (WasIt), against {', '.join(f'{BASES[k]} {get(base[k], 'textsight_2026', 'auroc'):.1f} and {get(base[k], 'wasit_2026', 'auroc'):.1f}' for k in bb_)}.</li>"
+      f"<li><b>Accuracy.</b> On the held-out sets that include our training distribution the detector reaches {mo[0]:.1f} mean AUROC; the open detectors reach {', '.join(f'{BASES[k]} {bb_[k][0]:.1f}' for k in bb_)}. On the two 2026 sets that no model trained on, it is level with the baselines: {get(r15, 'textsight_2026', 'auroc'):.1f} (TextSight) and {get(r15, 'wasit_2026', 'auroc'):.1f} (WasIt), against {', '.join(f'{BASES[k]} {get(base[k], 'textsight_2026', 'auroc'):.1f} and {get(base[k], 'wasit_2026', 'auroc'):.1f}' for k in bb_)}.</li>"
       f"<li><b>Speed.</b> {sp8:.2f} s per 512-token document in int8 and {spd('nano', 'fp32'):.2f} s in fp32 on 8 cores; one core takes {spd('nano', 'int8', 1):.2f} s in int8. Fakespot RoBERTa-base (125M parameters, document score only) is as fast: {spd('fakespot', 'int8'):.2f} s in int8, {spd('fakespot', 'fp32'):.2f} s in fp32; desklib takes {spd('desklib', 'int8'):.2f} s in int8.</li>"
-      f"<li><b>Word-level.</b> Word AUROC is {get(res[REF], 'spans_test', 'word_auroc', 'word'):.1f} on Claude-written spans, {get(res[REF], 'raid_splice', 'word_auroc', 'word'):.1f} on RAID splices and {get(res[REF], 'gen_edit', 'word_auroc', 'word'):.1f} on sentence edits, but only {get(res[REF], 'opai_spans', 'word_auroc', 'word'):.1f} on OpAI-Bench mixed texts (2026 generators, low-coverage edits). Heatmaps are in the demo report.</li>"
-      f"<li><b>Limits.</b> Humanizer outputs are caught at {100 * hum_ref['all']['outputs']['recall@1']:.0f}% (1% FPR) and {100 * hum_ref['all']['outputs']['recall@5']:.0f}% (5% FPR); {100 * bhum['desklib']['outputs']['recall@1'] if bhum else float('nan'):.0f}% for desklib at 1% FPR. WasIt and OpAI-Bench show that informal and edited human text is the main source of false positives.</li>"
-      f"<li><b>What helped.</b> More licensed human text and sentence-level edits in the training data (round 2) mostly improved sentence-edit detection; 1.5 AI texts per human text and 2.3x more human text (round 4) improved WasIt by {get(r15, 'wasit_2026', 'auroc') - get(res[REF], 'wasit_2026', 'auroc'):+.1f} and OpAI-Bench by {get(r15, 'opai_doc', 'auroc') - get(res[REF], 'opai_doc', 'auroc'):+.1f}. Longer training on the same data hurt.</li></ul>")
+      f"<li><b>Word-level.</b> Word AUROC is {r4w('spans_test'):.1f} on Claude-written spans, {r4w('raid_splice'):.1f} on RAID splices and {r4w('gen_edit'):.1f} on sentence edits, but only {r4w('opai_spans'):.1f} on OpAI-Bench mixed texts (2026 generators, low-coverage edits). Heatmaps are in the demo report.</li>"
+      f"<li><b>Limits.</b> Humanizer outputs are caught at {100 * hr4['recall@1']:.0f}% (1% FPR) and {100 * hr4['recall@5']:.0f}% (5% FPR); {100 * bhum['desklib']['outputs']['recall@1'] if bhum else float('nan'):.0f}% for desklib at 1% FPR. WasIt and OpAI-Bench show that informal and edited human text is the main source of false positives.</li>"
+      f"<li><b>What changed in round 4.</b> More licensed human text (252k passages), block-level edits and 1.5 AI texts per human text improved WasIt by {get(r15, 'wasit_2026', 'auroc') - get(res[REF], 'wasit_2026', 'auroc'):+.1f} and OpAI-Bench by {get(r15, 'opai_doc', 'auroc') - get(res[REF], 'opai_doc', 'auroc'):+.1f} over the round-2 model, and lowered humanizer recall at 1% FPR by {100 * (hum_ref['all']['outputs']['recall@1'] - hr4['recall@1']):.0f} points. Longer training on the same data hurt.</li></ul>")
     A("<h2 id=sec-2>2. Model and training</h2>")
-    A("<p>voyage-4-nano (Apache-2.0; 12 Qwen3 layers, hidden size 1,024) with a linear token head and a linear document head on the mean hidden state, bidirectional attention, trained for 600M tokens on one H100 at about 40% MFU. Every training document carries AI character spans, so the same model gives a document score and a word heatmap. Data: licensed Common Pile human text plus AI text from eight Apache-2.0 or MIT models (see the data report). The licence audit, mixtures and evaluation sets are in the <a href='00_data.html'>data report</a>.</p>")
+    A("<p>voyage-4-nano (Apache-2.0; 12 Qwen3 layers, hidden size 1,024) with a linear token head and a linear document head on the mean hidden state, bidirectional attention, trained for 1.2B tokens (round 4; the round-2 model used 600M) on one H100 at about 40% MFU. Every training document carries AI character spans, so the same model gives a document score and a word heatmap. Data: licensed Common Pile human text plus AI text from eight Apache-2.0 or MIT models (see the data report). The licence audit, mixtures and evaluation sets are in the <a href='00_data.html'>data report</a>.</p>")
     A(det("Design, labels and training recipe", strip(B["design"]) + strip(B["train"])))
-    A("<h2 id=sec-3>3. Detailed results</h2>")
+    A("<h2 id=sec-3>3. Detailed results</h2><p class=small>The tables in this section were produced for the round-2 model (the previous final model, <code>lic3_nano_r10</code>); the round-4 model is in Table <a href='#tab-1'>1</a> and in the round-4 section below.</p>")
     A(det("Document-level results by evaluation set (AUROC, TPR at 1% FPR, held-out generators)", strip(B["doc"])))
     A(det("Word-level results", strip(B["word"])))
     A(det("CPU latency and int8 accuracy", strip(B["cpu"])))
