@@ -96,7 +96,7 @@ worker.onmessage = (e) => {
   else if (m.type === "progress") {
     if (m.phase === "download") { setBar(m.loaded / m.total * 0.95); $("loader-detail").textContent = `${fmtMB(m.loaded)} of ${fmtMB(m.total)} MB`; } else { setBar(1, true); $("loader-detail").textContent = "initializing"; }
   } else if (m.type === "ready") {
-    S.ready = true; setBar(1); $("loader").classList.add("done"); $("loader-title").textContent = m.cached ? "Model loaded from your browser cache" : "Model downloaded and stored in your browser"; $("loader-detail").textContent = m.threads > 1 ? `${m.threads} threads` : "1 thread";
+    S.ready = true; setBar(1); $("loader").classList.add("done"); $("loader-title").textContent = m.cached ? "Model loaded from your browser cache" : "Model downloaded and stored in your browser"; $("loader-detail").textContent = "";
     $("runinfo").textContent = `Model version ${m.version}, ${m.threads} CPU thread${m.threads > 1 ? "s" : ""}${m.isolated ? "" : " (cross-origin isolation is off, so this runs on one thread and is slower)"}.`;
     setStatus("ready", "Ready"); render(); if (S.wantRun || wordsOf(ta.value).length >= MIN_WORDS) run();
   } else if (m.type === "analyzing") { if (m.id === S.sentId) setStatus("busy", m.total > 1 ? `Reading, part ${m.done} of ${m.total}` : "Reading"); }
