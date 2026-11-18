@@ -12,8 +12,6 @@ header{margin-bottom:1.6rem}
 h1{margin:0 0 .6rem;font-size:clamp(1.9rem,4.6vw,2.9rem);line-height:1.08;letter-spacing:-.035em;font-weight:700}
 .privacy{display:flex;align-items:center;gap:.65rem;margin:1.1rem 0 0;font-size:.9rem;color:var(--soft)}
 .privacy svg{flex:none;width:2.4rem;height:2.4rem;padding:.55rem;border-radius:50%;background:var(--ink);color:var(--bg);stroke-width:1.8}
-.privacy b{color:var(--ink)}
-.lead{margin:0;color:var(--soft);max-width:52ch;font-size:1.04rem}
 a{color:var(--accent)} .muted{color:var(--muted)} .small{font-size:.82rem} .grow{flex:1}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1.15rem 1.35rem;margin:0 0 1rem}
 .row{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap}
