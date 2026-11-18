@@ -33,9 +33,9 @@ a{color:var(--accent)} .muted{color:var(--muted)} .small{font-size:.82rem} .grow
 /* score */
 .score{display:flex;gap:1.6rem;align-items:center;flex-wrap:wrap}
 .num{display:flex;align-items:baseline;gap:.15rem;min-width:7.5rem}
-.num span{font-size:4.4rem;line-height:1;font-weight:760;letter-spacing:-.06em;font-variant-numeric:tabular-nums;color:var(--ink);transition:filter .3s}
+.num span{font-size:4.4rem;line-height:1;font-weight:760;letter-spacing:-.06em;font-variant-numeric:tabular-nums;color:var(--ink);transition:opacity .3s}
 .num small{font-size:1.4rem;font-weight:600;color:var(--muted)}
-.score.idle .num span{filter:opacity(.28)} .score.idle .num small{opacity:0}
+.score.idle .num span{opacity:0} .score.idle .num small{opacity:0}
 .side{flex:1;min-width:15rem}
 .verdict{font-weight:650;font-size:1.05rem;margin-bottom:.55rem;transition:opacity .25s}
 .meter{position:relative;height:8px;border-radius:99px;background:linear-gradient(90deg,#008bfb 0%,#ff0051 100%)}
