@@ -27,6 +27,7 @@ a{color:var(--accent)} .muted{color:var(--muted)} .small{font-size:.82rem} .grow
 .loader.done{padding:.5rem 1.2rem;background:transparent;border-color:transparent;backdrop-filter:none}
 .loader.done .bar,.loader.done #loader-note{display:none}
 .loader.done strong{font-weight:500;color:var(--muted);font-size:.85rem}
+.loader.done strong::before{content:"\2713";color:var(--good);font-weight:700;margin-right:.45rem}
 
 /* score */
 .score{display:flex;gap:1.6rem;align-items:center;flex-wrap:wrap}
