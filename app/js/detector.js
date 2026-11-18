@@ -26,13 +26,14 @@ export function tokenToWord(text, offsets, tokProb) {
 export const sigmoid = (x) => 1 / (1 + Math.exp(-x));
 
 // run `runWindow(ids) -> {tok: Float32Array, doc: number}` over the windows of one text
-export async function scoreIds(ids, window, runWindow, onProgress) {
+export async function scoreIds(ids, window, runWindow, onProgress, shouldAbort) {
   const n = ids.length, tokSum = new Float64Array(n), tokCnt = new Float64Array(n), ws = windows(n, window);
   let dl = 0, dw = 0, k = 0;
   for (const [s, e] of ws) {
+    if (shouldAbort?.()) throw new Error("superseded");
     const { tok, doc } = await runWindow(ids.slice(s, e));
     for (let i = 0; i < e - s; i++) { tokSum[s + i] += sigmoid(tok[i]); tokCnt[s + i] += 1; }
-    dl += doc * (e - s); dw += e - s; k++; onProgress?.(k, ws.length);
+    dl += doc * (e - s); dw += e - s; k++; onProgress?.(k, ws.length, { tokSum, tokCnt, upTo: e });
   }
   const tp = Float64Array.from(tokSum, (v, i) => v / Math.max(tokCnt[i], 1)); let mean = 0; for (const v of tp) mean += v;
   return { docLogit: dl / dw, docProb: sigmoid(dl / dw), tokProb: tp, tokProbMean: tp.length ? mean / tp.length : 0.5, windows: ws.length };

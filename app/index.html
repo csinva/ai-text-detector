@@ -4,54 +4,73 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AI text detector</title>
-<meta name="description" content="Paste text and see which words look AI-generated. The model runs in your browser; your text is never uploaded.">
+<meta name="description" content="Type or paste text and watch which words look AI-generated, live. The model runs in your browser; your text is never uploaded.">
 <link rel="stylesheet" href="style.css">
 <script src="coi-serviceworker.js"></script>
 </head>
 <body>
-<header>
-  <h1>AI text detector</h1>
-  <p class="lead">Paste text to see which words look AI-generated. The model runs in your browser, so your text never leaves your device.</p>
-</header>
+<div class="glow" aria-hidden="true"></div>
+<main>
+  <header>
+    <p class="eyebrow">Runs entirely in your browser</p>
+    <h1>Which words sound like a machine?</h1>
+    <p class="lead">Type or paste below. The text lights up as it is read: warmer words look more AI-written. Nothing leaves your device.</p>
+  </header>
 
-<section id="loader" class="card" aria-live="polite">
-  <div class="row"><strong id="loader-title">Starting</strong><span id="loader-detail" class="muted"></span></div>
-  <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="loader-fill"></i></div>
-  <p id="loader-note" class="muted small">The first visit downloads the model (about 350 MB). It is stored in your browser and reused on later visits.</p>
-</section>
+  <section id="loader" class="loader" aria-live="polite">
+    <div class="row"><strong id="loader-title">Starting</strong><span id="loader-detail" class="muted"></span></div>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="loader-fill"></i></div>
+    <p id="loader-note" class="muted small">First visit only: downloading the model (about 350 MB). It is kept in your browser, so next time it opens instantly.</p>
+  </section>
 
-<section class="card">
-  <label for="input" class="small muted">Text to analyze</label>
-  <textarea id="input" rows="10" spellcheck="false" placeholder="Paste or type at least a few sentences. Longer passages (100 words or more) give more reliable scores."></textarea>
-  <div class="row controls">
-    <div>
-      <button id="analyze" class="primary">Analyze</button>
-      <button id="clear" type="button">Clear</button>
+  <section class="score card idle" id="scorecard" aria-live="polite">
+    <div class="num"><span id="score">&ndash;</span><small id="score-unit">%</small></div>
+    <div class="side">
+      <div class="verdict" id="verdict">Start typing or paste text</div>
+      <div class="meter"><i id="meter-dot"></i></div>
+      <div class="ends"><span>human</span><span>AI</span></div>
+      <div class="map" id="map" aria-hidden="true"></div>
     </div>
-    <div class="samples small muted">Try a sample:
-      <button type="button" class="link" data-sample="human">human</button>
-      <button type="button" class="link" data-sample="ai">AI-written</button>
-      <button type="button" class="link" data-sample="mixed">mixed</button>
+  </section>
+
+  <section class="card editor-card">
+    <div class="editor-head">
+      <span class="chip" id="status" data-state="loading"><i class="dot"></i><span id="status-text">Loading the model</span></span>
+      <span class="grow"></span>
+      <span id="count" class="muted small"></span>
+      <span class="samples small muted">Try
+        <button type="button" class="link" data-sample="human">human</button>
+        <button type="button" class="link" data-sample="ai">AI-written</button>
+        <button type="button" class="link" data-sample="mixed">mixed</button>
+      </span>
+      <button id="clear" type="button" class="ghost">Clear</button>
     </div>
-    <span id="count" class="small muted"></span>
-  </div>
-  <p id="msg" class="small" role="status"></p>
-</section>
+    <div class="editor" id="editor">
+      <div class="mirror" id="mirror" aria-hidden="true"></div>
+      <textarea id="input" rows="8" spellcheck="false" autocomplete="off" aria-label="Text to analyze" placeholder="Start typing, or paste a paragraph. A few sentences give the steadiest read."></textarea>
+    </div>
+    <div class="legend small muted">
+      <span>human</span><span class="ramp"></span><span>AI</span>
+      <span class="sep">&middot;</span><span>hover a word for its probability</span>
+      <span class="grow"></span>
+      <button id="analyze" type="button" class="ghost" title="Ctrl or Cmd + Enter">Analyze now</button>
+    </div>
+    <p id="msg" class="small" role="status"></p>
+  </section>
 
-<section id="result" aria-live="polite"></section>
-
-<details class="card about">
-  <summary>About this detector</summary>
-  <p>The model is voyage-4-nano (Apache-2.0) fine-tuned to give each token a probability of being AI-written and the whole text a score. It was trained only on data with licences that allow commercial use. The page runs it with <a href="https://onnxruntime.ai/">ONNX Runtime Web</a> (int8 weights, WebAssembly), so no server sees your text.</p>
-  <ul>
-    <li><b>Score.</b> The large number is the model's estimate that the text is AI-written. For text that mixes both, it tracks the share of AI text rather than giving a yes or no.</li>
-    <li><b>Heatmap.</b> Each word is shaded by the mean probability of its tokens. Short passages and informal writing are the least reliable; on informal human text the false positive rate is substantial.</li>
-    <li><b>Not for decisions about people.</b> Detectors make mistakes in both directions. Do not use a score as evidence that someone cheated.</li>
-    <li><b>Limits.</b> Texts over 30,000 characters are truncated. Output of tools that paraphrase AI text to evade detectors is only partly detected.</li>
-  </ul>
-  <p class="small muted"><span id="runinfo"></span> <button type="button" class="link" id="clear-cache">Remove the downloaded model from this browser</button></p>
-</details>
-
+  <details class="card about">
+    <summary>About this detector</summary>
+    <p>The model is voyage-4-nano (Apache-2.0) fine-tuned to give each token a probability of being AI-written and the whole text a score. It was trained only on data with licences that allow commercial use. The page runs it with <a href="https://onnxruntime.ai/">ONNX Runtime Web</a> (int8 weights, WebAssembly), so no server sees your text.</p>
+    <ul>
+      <li><b>Live reading.</b> The page re-reads the text a moment after you pause or finish a few words, and right away when you paste. Words still waiting for the model shimmer; a light sweeps across them as they are scored.</li>
+      <li><b>Score.</b> The large number is the model's estimate that the text is AI-written. For text that mixes both, it tracks the share of AI text rather than giving a yes or no.</li>
+      <li><b>Not for decisions about people.</b> Short passages, informal writing and text rewritten by paraphrasing tools are the least reliable, and detectors err in both directions. Do not use a score as evidence that someone cheated.</li>
+      <li><b>Limits.</b> Texts over 30,000 characters are cut.</li>
+    </ul>
+    <p class="small muted"><span id="runinfo"></span> <button type="button" class="link" id="clear-cache">Remove the downloaded model from this browser</button></p>
+  </details>
+</main>
+<div id="tip" class="tip" role="tooltip"></div>
 <noscript><p class="card">This page needs JavaScript and WebAssembly.</p></noscript>
 <script type="module" src="js/app.js"></script>
 </body>

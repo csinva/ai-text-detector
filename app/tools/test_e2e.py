@@ -47,8 +47,21 @@ try:
             words = r["words"]; gw = g["words"]; same = len(words) == len(gw) and all(abs(a[0] - b_[0]) + abs(a[1] - b_[1]) == 0 for a, b_ in zip(words, gw))
             mae = sum(abs(a[2] - b_[2]) for a, b_ in zip(words, gw)) / max(len(gw), 1) if same else 9
             check(f"sample '{k}': words, doc score and word probabilities match python", same and abs(r["docLogit"] - g["doc_logit"]) < 0.4 and mae < 0.04, f"doc {r['docProb']:.3f} vs {g['doc_prob']:.3f}, word MAE {mae:.4f}, {dt:.1f}s ({r['ms'] / 1000:.1f}s in worker)")
-        check("heatmap rendered", page.evaluate("document.querySelectorAll('#result .hmx .w').length") > 50)
+        check("heat is drawn on the text layer itself", page.evaluate("document.querySelectorAll('#mirror .w[data-p]').length") > 50)
         page.screenshot(path=os.path.join(HERE, "screenshot_mixed.png"), full_page=True)
+        # live reading: typing (no click) triggers analysis, new words shimmer, the result colours the typed words
+        page.fill("#input", ""); page.evaluate("window.__lastResult = null")
+        page.click("#input"); typed = "The committee reviewed the proposal carefully and then decided to postpone the vote until next month because several members were absent."
+        page.keyboard.type(typed, delay=35); saw_pending = page.evaluate("document.querySelectorAll('#mirror .w.pend').length") > 0
+        page.wait_for_function("window.__lastResult && window.__lastResult.text.length > %d" % (len(typed) - 4), timeout=60000)
+        check("typing is read automatically (no click)", page.evaluate("window.__lastResult.words.length") >= 20, f"words {page.evaluate('window.__lastResult.words.length')}")
+        check("words show a shimmer while waiting for the model", saw_pending)
+        check("typed words are coloured in place", page.evaluate("document.querySelectorAll('#mirror .w[data-p]').length") >= 20)
+        page.screenshot(path=os.path.join(HERE, "screenshot_typed.png"), full_page=True)
+        page.click("#clear"); page.evaluate("window.__lastResult = null")
+        page.evaluate("(t) => { const ta = document.getElementById('input'); ta.value = t; ta.dispatchEvent(new InputEvent('input', {inputType: 'insertFromPaste'})); }", G["model"]["mixed"]["text"])
+        page.wait_for_function("window.__lastResult", timeout=60000)
+        check("paste is read at once", page.evaluate("window.__lastResult.words.length") > 50)
         # long text -> several windows
         long_text = " ".join([G["model"]["human"]["text"], G["model"]["ai"]["text"]] * 6); page.fill("#input", long_text); page.evaluate("window.__lastResult = null"); page.click("#analyze")
         page.wait_for_function("window.__lastResult", timeout=600000); r = page.evaluate("window.__lastResult")

@@ -5,7 +5,9 @@ import { scoreIds, tokenToWord } from "./detector.js";
 
 const CACHE = "ai-text-detector-model";
 const MAX_CHARS = 30000;
-let session = null, tok = null, manifest = null, windowSize = 1024, loading = null;
+let session = null, tok = null, manifest = null, windowSize = 1024, loading = null, latest = 0;
+const winCache = new Map();   // window results by token content: typing at the end of a long text only recomputes the last window
+function key(ids) { let h = 2166136261 >>> 0; for (const v of ids) { h ^= v; h = Math.imul(h, 16777619) >>> 0; } return ids.length + ":" + h; }
 const post = (m) => self.postMessage(m);
 
 async function sha256(buf) {
@@ -68,12 +70,24 @@ async function analyze(id, rawText) {
   let text = rawText.length > MAX_CHARS ? rawText.slice(0, MAX_CHARS) : rawText;
   const enc = tok.encode(text); text = enc.text;
   if (!enc.ids.length) throw new Error("Nothing to analyze.");
+  let hits = 0;
   const run = async (ids) => {
+    const k = key(ids), hit = winCache.get(k);
+    if (hit) { hits++; return hit; }
     const out = await session.run({ ids: new ort.Tensor("int64", BigInt64Array.from(ids, (v) => BigInt(v)), [ids.length]) });
-    return { tok: out.tok.data, doc: out.doc.data[0] };
+    const r = { tok: Float32Array.from(out.tok.data), doc: out.doc.data[0] };
+    if (winCache.size > 64) winCache.delete(winCache.keys().next().value);
+    winCache.set(k, r); return r;
   };
-  const r = await scoreIds(enc.ids, windowSize, run, (k, n) => post({ type: "analyzing", id, done: k, total: n }));
-  post({ type: "result", id, text, truncated: rawText.length > MAX_CHARS, tokens: enc.ids.length, windows: r.windows, docProb: r.docProb, docLogit: r.docLogit, tokProbMean: r.tokProbMean,
+  const onProgress = (k, n, st) => {
+    post({ type: "analyzing", id, done: k, total: n });
+    if (k < n) {                                        // words of the tokens processed so far, so long texts fill in window by window
+      const up = st.upTo, tp = Float64Array.from({ length: up }, (_, i) => st.tokSum[i] / Math.max(st.tokCnt[i], 1)), cut = enc.offsets[up - 1][1];
+      post({ type: "partial", id, text, words: tokenToWord(text.slice(0, cut), enc.offsets.slice(0, up), tp) });
+    }
+  };
+  const r = await scoreIds(enc.ids, windowSize, run, onProgress, () => id < latest);
+  post({ type: "result", id, text, truncated: rawText.length > MAX_CHARS, tokens: enc.ids.length, windows: r.windows, cachedWindows: hits, docProb: r.docProb, docLogit: r.docLogit, tokProbMean: r.tokProbMean,
          words: tokenToWord(text, enc.offsets, r.tokProb), ms: performance.now() - t0 });
 }
 
@@ -83,7 +97,12 @@ self.onmessage = (e) => {
   if (m.type === "init") {
     loading ||= load(m.base).catch((err) => { loading = null; post({ type: "error", where: "load", message: String(err.message || err) }); });
   } else if (m.type === "analyze") {
-    chain = chain.then(async () => { await loading; if (!session) return; try { await analyze(m.id, m.text); } catch (err) { post({ type: "error", where: "analyze", id: m.id, message: String(err.message || err) }); } });
+    latest = Math.max(latest, m.id);                    // only the newest text matters while the user keeps typing
+    chain = chain.then(async () => {
+      await loading; if (!session) return;
+      if (m.id < latest) { post({ type: "skipped", id: m.id }); return; }
+      try { await analyze(m.id, m.text); } catch (err) { if (err.message === "superseded") post({ type: "skipped", id: m.id }); else post({ type: "error", where: "analyze", id: m.id, message: String(err.message || err) }); }
+    });
   } else if (m.type === "clear") {
     (async () => { await caches.delete(CACHE); post({ type: "cleared" }); })();
   }
