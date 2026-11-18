@@ -40,9 +40,6 @@ a{color:var(--accent)} .muted{color:var(--muted)} .small{font-size:.82rem} .grow
 .meter{position:relative;height:8px;border-radius:99px;background:linear-gradient(90deg,#008bfb 0%,#ff0051 100%)}
 .meter i{position:absolute;top:50%;left:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:var(--bg);border:3px solid var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.5);transition:left .3s cubic-bezier(.2,.8,.2,1)}
 .ends{display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted);margin-top:.35rem}
-.map{display:flex;gap:2px;height:12px;margin-top:.7rem}
-.map b{flex:1;border-radius:3px;background:var(--fill);transform-origin:bottom;animation:rise .5s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--k,0) * 8ms)}
-@keyframes rise{from{transform:scaleY(.15);opacity:0}}
 
 /* editor: the heat map is drawn behind the text you type */
 .editor-card{padding:1rem 1.15rem 1rem}

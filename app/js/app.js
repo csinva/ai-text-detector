@@ -74,13 +74,6 @@ function setScore(p, text) {
   const from = shownScore, to = 100 * p, t0 = performance.now(); $("meter-dot").style.left = to.toFixed(1) + "%";
   (function f(t) { const k = Math.min(1, (t - t0) / 250), v = from + (to - from) * (1 - Math.pow(1 - k, 3)); $("score").textContent = Math.round(v); shownScore = v; if (k < 1) requestAnimationFrame(f); })(t0);
 }
-function setMap(words) {
-  const rel = rescaler(words.map((w) => w[2])), map = $("map"), n = Math.min(56, words.length); map.replaceChildren();
-  for (let i = 0; i < n; i++) {
-    const a = Math.floor(i * words.length / n), b = Math.floor((i + 1) * words.length / n); let s = 0; for (let j = a; j < b; j++) s += words[j][2];
-    const v = b > a ? s / (b - a) : 0, el = document.createElement("b"); el.style.setProperty("--k", i); el.style.background = colorOf(rel(v)); map.appendChild(el);
-  }
-}
 const label = (p) => (p < 0.2 ? "Looks human-written" : p < 0.6 ? "Mixed or uncertain" : "Looks AI-generated");
 function setStatus(state, text) { $("status").dataset.state = state; $("status-text").textContent = text; }
 function say(msg, warn) { $("msg").textContent = msg || ""; $("msg").style.color = warn ? "#ff9a6c" : "#b3aea5"; }
@@ -104,7 +97,7 @@ worker.onmessage = (e) => {
   else if (m.type === "result") {
     if (m.id !== S.sentId) return;                                  // an older text: a newer one is already on its way
     S.doneId = m.id; apply(m); const flagged = m.words.filter((w) => w[2] > 0.5).length;
-    setScore(m.docProb, m.words.length < 6 ? `${label(m.docProb)} · very short text, low confidence` : `${label(m.docProb)} · ${Math.round(100 * flagged / m.words.length)}% of words flagged`); setMap(m.words); render();
+    setScore(m.docProb, m.words.length < 6 ? `${label(m.docProb)} · very short text, low confidence` : `${label(m.docProb)} · ${Math.round(100 * flagged / m.words.length)}% of words flagged`); render();
     setStatus("ready", `Read ${m.tokens} tokens in ${m.ms < 1000 ? Math.round(m.ms) + " ms" : (m.ms / 1000).toFixed(1) + " s"}${m.cachedWindows ? " (part reused)" : ""}`);
     say(m.truncated ? `Only the first 30,000 characters (about ${m.words.length.toLocaleString()} words) were scored; the rest is not highlighted.` : m.tokens < 60 ? "Short text: keep writing for a steadier score." : "", m.truncated); window.__lastResult = m;
     if (ta.value.slice(0, MAX_CHARS).normalize("NFC") !== m.text) run();               // changed while reading
@@ -146,7 +139,7 @@ function updateCount() { const n = wordsOf(ta.value).length; $("count").textCont
 ta.addEventListener("input", onInput);
 ta.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run(); });
 $("analyze").addEventListener("click", run);
-$("clear").addEventListener("click", () => { ta.value = ""; S.snap = ""; S.probs = new Map(); S.shown = new Map(); $("map").replaceChildren(); onInput(null); ta.focus(); });
+$("clear").addEventListener("click", () => { ta.value = ""; S.snap = ""; S.probs = new Map(); S.shown = new Map(); onInput(null); ta.focus(); });
 document.querySelectorAll("[data-sample]").forEach((b) => b.addEventListener("click", () => { ta.value = SAMPLES[b.dataset.sample]; onInput({ inputType: "insertFromPaste" }); ta.focus(); }));
 $("loader").addEventListener("click", (e) => { if (e.target.id === "clear-cache") worker.postMessage({ type: "clear" }); });
 $("editor").addEventListener("mousemove", (e) => {                     // the textarea is on top, so look through it for the word chip underneath
