@@ -22,13 +22,14 @@ function colorOf(p) {
   }
   return `rgba(${PINK},.8)`;
 }
-// relative scale: 5th to 95th percentile of the words on screen, at least MIN_SPAN wide, so colours compare words with each other
-const MIN_SPAN = 0.2;
+// relative scale: the middle stays at an absolute 50%, so a word below 50% is never pink and one above is never blue;
+// each side is stretched to the 5th/95th percentile of the words on screen (at least 0.1 from the middle, so mild scores are not exaggerated)
+const MIN_HALF = 0.1;
 function rescaler(vals) {
-  if (vals.length < 2) return (p) => p;
+  if (!vals.length) return (p) => p;
   const v = vals.slice().sort((x, y) => x - y), q = (f) => v[Math.min(v.length - 1, Math.floor(f * (v.length - 1) + 0.5))];
-  let lo = q(0.05), hi = q(0.95); if (hi - lo < MIN_SPAN) { const m = (lo + hi) / 2; lo = m - MIN_SPAN / 2; hi = m + MIN_SPAN / 2; }
-  return (p) => Math.min(1, Math.max(0, (p - lo) / (hi - lo)));
+  const lo = Math.min(q(0.05), 0.5 - MIN_HALF), hi = Math.max(q(0.95), 0.5 + MIN_HALF);
+  return (p) => p < 0.5 ? Math.max(0, 0.5 - 0.5 * (0.5 - p) / (0.5 - lo)) : Math.min(1, 0.5 + 0.5 * (p - 0.5) / (hi - 0.5));
 }
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const wordsOf = (t) => Array.from(t.matchAll(/\S+/g), (m) => [m.index, m.index + m[0].length]);
