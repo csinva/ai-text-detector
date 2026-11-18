@@ -35,6 +35,14 @@ SET_LABEL = {"mage_squad_test": "MAGE test, SQuAD domain", "raid_id": "RAID, see
              "gen_humanized": "Humanizer-style rewrites of AI text (6 to 8 generators)", "gen_edit": "Human text with AI-rewritten sentences (doc level)", "gen_newgen": "Generated text, newest generators (gpt-oss-20b, Qwen3-30B)"}
 DOC = list(SET_LABEL)
 BASES = {"desklib": "desklib v1.01", "fakespot": "Fakespot RoBERTa-base", "openai-large": "OpenAI RoBERTa-large"}
+SUP = list(BASES)                                                      # supervised detectors
+ZS = {"binoculars": "Binoculars", "fast-detectgpt": "Fast-DetectGPT", "detectgpt": "DetectGPT"}   # zero-shot detectors (18_zeroshot_baselines.py)
+import glob
+for _k in ZS:                                                          # merge the per-shard result files
+    for _f in sorted(glob.glob(f"{R}/baselines_zs_{_k}.json") + glob.glob(f"{R}/baselines_zs_{_k}_p*.json")): base.setdefault(_k, {}).update(J(_f).get(_k, {}))
+BASES.update({k: v for k, v in ZS.items() if base.get(k)})
+cpuz = [x for k in ZS for x in (J(f"{R}/cpu_bench_zs_{k}.json") or [])]
+for _k in ZS: bhum.update(J(f"{R}/baselines_zs_{_k}_hum.json"))
 
 
 def d(v, ref, digits=1):
@@ -153,16 +161,20 @@ def tab_r4():
     return t1 + t2
 
 
-PARAMS = {"nano": "voyage-4-nano, 12 layers (189M)", "desklib": "DeBERTa-v3-large (435M)", "fakespot": "RoBERTa-base (125M)", "openai-large": "RoBERTa-large (355M)"}
-COL = {"ours": "#1f5fbf", "desklib": "#c4452d", "fakespot": "#6b7280", "openai-large": "#8a4fb3"}
+PARAMS = {"nano": "voyage-4-nano, 12 layers (189M)", "desklib": "DeBERTa-v3-large (435M)", "fakespot": "RoBERTa-base (125M)", "openai-large": "RoBERTa-large (355M)",
+          "binoculars": "Falcon-7B + Falcon-7B-Instruct (14B)", "fast-detectgpt": "GPT-J-6B + GPT-Neo-2.7B (8.7B)", "detectgpt": "GPT-Neo-2.7B + T5-large (3.5B)"}
+COL = {"ours": "#1f5fbf", "desklib": "#c4452d", "fakespot": "#6b7280", "openai-large": "#8a4fb3", "binoculars": "#b07d00", "fast-detectgpt": "#1f9e89", "detectgpt": "#d9780f"}
 
 
 def spd(model, variant, threads=8):
     """seconds per 512-token document on CPU"""
-    if model == "nano":
+    if model in ZS:   # zero-shot: bf16 on CPU, 8 threads
+        x = [c for c in cpuz if c["model"] == model and c["threads"] == threads]
+    elif model == "nano":
         x = [c for c in cpu if c["variant"] == variant and c["threads"] == threads and c["tokens"] == 512]
     else:
         x = [c for c in cpub if c["model"] == model and c["variant"] == variant and c["threads"] == threads]
+    if x and model in ZS: return float(min(x[0].get("reps", [x[0]["sec_per_doc"]])))   # warm run: the first document includes one-off kernel and cache set-up
     return x[0]["sec_per_doc"] if x else float("nan")
 
 
@@ -174,27 +186,28 @@ def metrics_of(key):
     if key == "ours": r = res[REF]
     elif key == "ours15": r = r15
     else: r = base[key]
-    op = get(r, "opai_doc", "auroc") if key.startswith("ours") else (bopai.get(key, {}).get("opai_doc", {}).get("doc", {}).get("auroc", float("nan")))
+    op = get(r, "opai_doc", "auroc") if (key.startswith("ours") or key in ZS) else (bopai.get(key, {}).get("opai_doc", {}).get("doc", {}).get("auroc", float("nan")))
     return mean_auc(r), shifted(r), op
 
 
 def fig_speed():
     import math
     pts = []
-    for key, lab, c in (("desklib", "desklib", COL["desklib"]), ("fakespot", "Fakespot", COL["fakespot"]), ("openai-large", "OpenAI RoBERTa-large", COL["openai-large"])):
-        pts.append((key, lab, spd(key, "fp32"), metrics_of(key), c, True))
+    for key, lab, c in (("desklib", "desklib", COL["desklib"]), ("fakespot", "Fakespot", COL["fakespot"]), ("openai-large", "OpenAI RoBERTa-large", COL["openai-large"]), ("binoculars", "Binoculars", COL["binoculars"]),
+                        ("fast-detectgpt", "Fast-DetectGPT", COL["fast-detectgpt"]), ("detectgpt", "DetectGPT", COL["detectgpt"])):
+        if key in BASES: pts.append((key, lab, spd(key, "fp32"), metrics_of(key), c, True))
     m = metrics_of("ours15")      # the round-4 model; int8 is the deployed setting, fp32 (hollow) has the same accuracy
     pts += [("ours15", "ours, int8", spd("nano", "int8"), m, COL["ours"], True)]
-    W, H, Lm, Rm, Tm, Bm = 308, 250, 40, 8, 30, 44; x0, x1 = math.log10(0.05), math.log10(20)
+    W, H, Lm, Rm, Tm, Bm = 308, 250, 40, 8, 30, 44; x0, x1 = math.log10(0.05), math.log10(3000)
     X = lambda v: Lm + (math.log10(v) - x0) / (x1 - x0) * (W - Lm - Rm)
     panels = ["Mean AUROC, 17 held-out sets", "Mean AUROC, TextSight + WasIt (2026)", "AUROC, OpAI-Bench"]; out = ""
     for k, title in enumerate(panels):
-        ys = [p[3][k] for p in pts if not math.isnan(p[3][k]) and not math.isnan(p[2]) and p[0] != 'openai-large']
+        ys = [p[3][k] for p in pts if not math.isnan(p[3][k]) and not math.isnan(p[2]) and p[0] not in ('openai-large', 'detectgpt')]
         lo = max(0, math.floor((min(ys) - 3) / 5) * 5); hi = min(100, math.ceil((max(ys) + 2) / 5) * 5)
         Y = lambda v: Tm + (hi - v) / (hi - lo) * (H - Tm - Bm)
         g = f"<text x='{W / 2}' y='16' text-anchor='middle' class=fl>{title}</text>"
         for v in range(int(lo), int(hi) + 1, 5): g += f"<line x1='{Lm}' x2='{W - Rm}' y1='{Y(v):.1f}' y2='{Y(v):.1f}' class=fg /><text x='{Lm - 5}' y='{Y(v) + 3:.1f}' text-anchor='end' class=ft>{v}</text>"
-        for v in (0.1, 1, 10): g += f"<line x1='{X(v):.1f}' x2='{X(v):.1f}' y1='{Tm}' y2='{H - Bm}' class=fg /><text x='{X(v):.1f}' y='{H - Bm + 14}' text-anchor='middle' class=ft>{v:g}</text>"
+        for v in (0.1, 1, 10, 100, 1000): g += f"<line x1='{X(v):.1f}' x2='{X(v):.1f}' y1='{Tm}' y2='{H - Bm}' class=fg /><text x='{X(v):.1f}' y='{H - Bm + 14}' text-anchor='middle' class=ft>{v:g}</text>"
         g += f"<text x='{(Lm + W - Rm) / 2}' y='{H - 8}' text-anchor='middle' class=ft>s per 512-token document, 8 cores (log)</text>"
         for key, lab, sp, mm, c, fill in pts:
             if math.isnan(mm[k]) or math.isnan(sp): continue
@@ -206,9 +219,11 @@ def fig_speed():
     css = ("<style>.fl{font:600 12px sans-serif;fill:var(--text-1)} .ft{font:11px sans-serif;fill:var(--text-2)} .fg{stroke:var(--border);stroke-width:1} .fw{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap} .sp{flex:1 1 640px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px} .sp svg{width:100%;height:auto} "
            ".lg{flex:0 0 190px;font-size:.8rem;line-height:1.35;padding-top:28px} .lg div{display:flex;gap:7px;align-items:flex-start;margin-bottom:9px} .lg svg{flex:0 0 14px;margin-top:2px} .lg small{display:block;color:var(--text-3)}</style>")
     mk = lambda c, fill: (f"<svg width=14 height=14 viewBox='0 0 14 14'><circle cx=7 cy=7 r=5 fill='{c}' /></svg>" if fill is True else f"<svg width=14 height=14 viewBox='0 0 14 14'><circle cx=7 cy=7 r=5 fill='white' stroke='{c}' stroke-width='1.6' /></svg>" if fill is False else f"<svg width=14 height=14 viewBox='0 0 14 14'><circle cx=7 cy=7 r=5 fill='{c}' fill-opacity='.35' stroke='{c}' stroke-width='1.6' /></svg>")
-    ent = [(COL["ours"], True, "Ours, int8", "round-4 model (1.5:1)"), (COL["desklib"], True, "desklib v1.01", "DeBERTa-v3-large, fp32"), (COL["fakespot"], True, "Fakespot", "RoBERTa-base, fp32"), (COL["openai-large"], True, "OpenAI RoBERTa-large", "fp32; an arrow marks a point below the axis")]
+    ent = [(COL["ours"], True, "Ours, int8", "round-4 model (1.5:1)"), (COL["desklib"], True, "desklib v1.01", "DeBERTa-v3-large, fp32"), (COL["fakespot"], True, "Fakespot", "RoBERTa-base, fp32"), (COL["openai-large"], True, "OpenAI RoBERTa-large", "fp32; an arrow marks a point below the axis"),
+           (COL["binoculars"], True, "Binoculars", "zero-shot, Falcon-7B pair, bf16"), (COL["fast-detectgpt"], True, "Fast-DetectGPT", "zero-shot, GPT-J-6B + GPT-Neo-2.7B, bf16"), (COL["detectgpt"], True, "DetectGPT", "zero-shot, GPT-Neo-2.7B + T5-large, 30 perturbations, bf16")]
+    ent = [e for e in ent if e[2] in ("Ours, int8", "desklib v1.01", "Fakespot", "OpenAI RoBERTa-large") or {"Binoculars": "binoculars", "Fast-DetectGPT": "fast-detectgpt", "DetectGPT": "detectgpt"}.get(e[2], "") in BASES]
     legend = "<div class=lg>" + "".join(f"<div>{mk(c, f)}<span><b>{t}</b><small>{d_}</small></span></div>" for c, f, t, d_ in ent) + "</div>"
-    return (f"{css}<figure id=fig-1 style='margin:12px 0;padding:0'><div class=fw><div class=sp>{out}</div>{legend}</div><figcaption style='font-size:.85rem;font-weight:400'><b>Figure 1.</b> Accuracy against CPU cost. Ours is plotted in int8 (the deployed setting; fp32 has the same accuracy and takes longer, <a href='#tab-1'>Table 1</a>); baselines in fp32. "
+    return (f"{css}<figure id=fig-1 style='margin:12px 0;padding:0'><div class=fw><div class=sp>{out}</div>{legend}</div><figcaption style='font-size:.85rem;font-weight:400'><b>Figure 1.</b> Accuracy against CPU cost. Ours is plotted in int8 (the deployed setting; fp32 has the same accuracy and takes longer, <a href='#tab-1'>Table 1</a>); the supervised baselines in fp32, the zero-shot detectors (which run two 3 to 7B language models, or 30 T5 perturbations per text) in bf16 with AMX on the same CPU. "
             "Accuracy for ours is the GPU evaluation (int8 accuracy was checked on a 400-document subsample of every set, see the CPU details under <a href='#sec-3'>Sec. 3</a>); baselines were run in fp16 on GPU with 512-token truncation. Left: the 17 held-out sets, which include three sets drawn from the training distribution of our model. Middle: the two 2026 sets that no model trained on. Right: OpAI-Bench test. "
             "Baselines return a document score only; ours also returns a word-level heatmap in the same pass.</figcaption></figure>")
 
@@ -216,10 +231,10 @@ def fig_speed():
 def tab_main():
     rows = ""
     ref = {"m": metrics_of("ours15")}
-    order = [("ours15", "Ours (round 4)"), ("desklib", "desklib v1.01"), ("fakespot", "Fakespot RoBERTa-base"), ("openai-large", "OpenAI RoBERTa-large")]
+    order = [("ours15", "Ours (round 4)")] + [(k, v) for k, v in BASES.items()]
     for key, lab in order:
         mm = metrics_of(key); mref = ref["m"]
-        sp = (spd("nano", "int8"), spd("nano", "fp32")) if key.startswith("ours") else (spd(key, "int8"), spd(key, "fp32"))
+        sp = (spd("nano", "int8"), spd("nano", "fp32")) if key.startswith("ours") else (spd(key, "int8"), spd(key, "fp32")) if key not in ZS else (spd(key, "bf16"), None)
         hr = hum_r15 if key == "ours15" else None
         h1 = 100 * hr["all"]["outputs"]["recall@1"] if hr else (100 * bhum[key]["outputs"]["recall@1"] if key in bhum else float("nan"))
         h1 = "n/a" if np.isnan(h1) else (f"{h1:.1f}" if key == "ours15" else d(h1, 100 * hum_r15["all"]["outputs"]["recall@1"]))
@@ -229,11 +244,11 @@ def tab_main():
             rr = r15
             wd = f"{get(rr, 'spans_test', 'word_auroc', 'word'):.1f} / {get(rr, 'opai_spans', 'word_auroc', 'word'):.1f}" if rr else ""
         else: wd = "no word output"
-        rows += (f"<tr><td>{lab}</td><td>{PARAMS['nano'] if key.startswith('ours') else PARAMS[key]}</td><td>{sp[0]:.2f} / {sp[1]:.2f}</td><td>{cell(mm[0], mref[0])}</td><td>{cell(mm[1], mref[1])}</td><td>{cell(mm[2], mref[2])}</td><td>{h1}</td><td>{wd}</td></tr>")
-    h = ("<tr><th>Detector</th><th>Backbone (matmul params)</th><th>CPU s per doc, int8 / fp32</th><th>Mean AUROC, 17 held-out sets</th><th>Mean AUROC, TextSight and WasIt</th><th>AUROC, OpAI-Bench</th>"
+        rows += (f"<tr><td>{lab}</td><td>{PARAMS['nano'] if key.startswith('ours') else PARAMS[key]}</td><td>{f"{sp[0]:.2f} / {sp[1]:.2f}" if sp[1] is not None else (f"{sp[0]:.0f} (bf16)" if not np.isnan(sp[0]) else "n/a")}</td><td>{cell(mm[0], mref[0])}</td><td>{cell(mm[1], mref[1])}</td><td>{cell(mm[2], mref[2])}</td><td>{h1}</td><td>{wd}</td></tr>")
+    h = ("<tr><th>Detector</th><th>Backbone (matmul params)</th><th>CPU s per doc, int8 / fp32 (zero-shot: bf16)</th><th>Mean AUROC, 17 held-out sets</th><th>Mean AUROC, TextSight and WasIt</th><th>AUROC, OpAI-Bench</th>"
          "<th>Humanizer recall at 1% FPR (%)</th><th>Word AUROC, Spans / OpAI</th></tr>")
     return (f"<div class=wide><table id=tab-1><caption style='text-align:left'><b>Table 1.</b> Our detector against the comparison detectors. Differences are to our model. CPU time is one 512-token document on 8 cores of an Intel Xeon Platinum 8468V (dynamic int8 quantization of the linear layers for the baselines, accuracy not re-evaluated; ours quantizes all but the MLP down projections and heads, accuracy checked). "
-            f"Humanizer recall uses a threshold at 1% FPR on 2,216 pooled human texts ([sets](#tab-d)). The 17 sets are listed in the data report; three of them come from our training distribution.</caption>{h}{rows}</table></div>").replace("([sets](#tab-d))", "(3,610 outputs of 19 commercial tools)")
+            f"Humanizer recall uses a threshold at 1% FPR on 2,216 pooled human texts ([sets](#tab-d)). The 17 sets are listed in the data report; three of them come from our training distribution. Binoculars and Fast-DetectGPT were scored on at most 1,500 documents per set (stratified by class), DetectGPT on at most 300 documents per set, 30 perturbations and the first 200 words, and on a subsample for the humanizer column; the 0.5-threshold metrics do not apply to their scores, so only AUROC and recall at a fixed false positive rate are shown. Zero-shot CPU time is bf16 on the same cores.</caption>{h}{rows}</table></div>").replace("([sets](#tab-d))", "(3,610 outputs of 19 commercial tools)")
 
 
 def tab_agg():
@@ -660,7 +675,7 @@ def main():
       f"Weak spots: WasItAIGenerated ({get(r15, 'wasit_2026', 'auroc'):.1f}), OpAI-Bench, commercial-humanizer text and informal or edited human text. Generated {stamp} UTC.</p>")
     A(fig_speed()); A(tab_main())
     A("<h2 id=sec-1>1. Main results</h2><ul>"
-      f"<li><b>Accuracy.</b> On the held-out sets that include our training distribution the detector reaches {mo[0]:.1f} mean AUROC; the open detectors reach {', '.join(f'{BASES[k]} {bb_[k][0]:.1f}' for k in bb_)}. On the two 2026 sets that no model trained on, it is level with the baselines: {get(r15, 'textsight_2026', 'auroc'):.1f} (TextSight) and {get(r15, 'wasit_2026', 'auroc'):.1f} (WasIt), against {', '.join(f'{BASES[k]} {get(base[k], 'textsight_2026', 'auroc'):.1f} and {get(base[k], 'wasit_2026', 'auroc'):.1f}' for k in bb_)}.</li>"
+      f"<li><b>Accuracy.</b> On the held-out sets that include our training distribution the detector reaches {mo[0]:.1f} mean AUROC; the open supervised detectors reach {', '.join(f'{BASES[k]} {bb_[k][0]:.1f}' for k in SUP)} and the zero-shot ones {', '.join(f'{BASES[k]} {bb_[k][0]:.1f}' for k in ZS if k in bb_)}. On the two 2026 sets that no model trained on, it is level with the baselines: {get(r15, 'textsight_2026', 'auroc'):.1f} (TextSight) and {get(r15, 'wasit_2026', 'auroc'):.1f} (WasIt), against {', '.join(f'{BASES[k]} {get(base[k], 'textsight_2026', 'auroc'):.1f} and {get(base[k], 'wasit_2026', 'auroc'):.1f}' for k in bb_)}.</li>"
       f"<li><b>Speed.</b> {sp8:.2f} s per 512-token document in int8 and {spd('nano', 'fp32'):.2f} s in fp32 on 8 cores; one core takes {spd('nano', 'int8', 1):.2f} s in int8. Fakespot RoBERTa-base (125M parameters, document score only) is as fast: {spd('fakespot', 'int8'):.2f} s in int8, {spd('fakespot', 'fp32'):.2f} s in fp32; desklib takes {spd('desklib', 'int8'):.2f} s in int8.</li>"
       f"<li><b>Word-level.</b> Word AUROC is {r4w('spans_test'):.1f} on Claude-written spans, {r4w('raid_splice'):.1f} on RAID splices and {r4w('gen_edit'):.1f} on sentence edits, but only {r4w('opai_spans'):.1f} on OpAI-Bench mixed texts (2026 generators, low-coverage edits). Heatmaps are in the demo report.</li>"
       f"<li><b>Limits.</b> Humanizer outputs are caught at {100 * hr4['recall@1']:.0f}% (1% FPR) and {100 * hr4['recall@5']:.0f}% (5% FPR); {100 * bhum['desklib']['outputs']['recall@1'] if bhum else float('nan'):.0f}% for desklib at 1% FPR. WasIt and OpAI-Bench show that informal and edited human text is the main source of false positives.</li>"

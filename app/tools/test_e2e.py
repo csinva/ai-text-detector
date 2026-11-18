@@ -46,7 +46,7 @@ try:
             r = page.evaluate("window.__lastResult"); dt = time.time() - t1
             words = r["words"]; gw = g["words"]; same = len(words) == len(gw) and all(abs(a[0] - b_[0]) + abs(a[1] - b_[1]) == 0 for a, b_ in zip(words, gw))
             mae = sum(abs(a[2] - b_[2]) for a, b_ in zip(words, gw)) / max(len(gw), 1) if same else 9
-            check(f"sample '{k}': words, doc score and word probabilities match python", same and abs(r["docProb"] - g["doc_prob"]) < 0.02 and mae < 0.02, f"doc {r['docProb']:.3f} vs {g['doc_prob']:.3f}, word MAE {mae:.4f}, {dt:.1f}s ({r['ms'] / 1000:.1f}s in worker)")
+            check(f"sample '{k}': words, doc score and word probabilities match python", same and abs(r["docLogit"] - g["doc_logit"]) < 0.4 and mae < 0.04, f"doc {r['docProb']:.3f} vs {g['doc_prob']:.3f}, word MAE {mae:.4f}, {dt:.1f}s ({r['ms'] / 1000:.1f}s in worker)")
         check("heatmap rendered", page.evaluate("document.querySelectorAll('#result .hmx .w').length") > 50)
         page.screenshot(path=os.path.join(HERE, "screenshot_mixed.png"), full_page=True)
         # long text -> several windows

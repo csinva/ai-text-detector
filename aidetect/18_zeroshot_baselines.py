@@ -157,7 +157,9 @@ res = {key: {}}
 cap = a.cap
 for name in a.sets.split(","):
     df = pd.read_parquet(f"{D}/prep_lic3/eval/{name}.parquet")
-    if len(df) > cap: df = df.sample(cap, random_state=0)
+    if len(df) > cap:                                          # stratified cap: up to half of the cap from the smaller class (WasIt has only 6% human texts)
+        h, m_ = df[df.label == 0], df[df.label == 1]; small, big = (h, m_) if len(h) <= len(m_) else (m_, h); ns = min(len(small), cap // 2)
+        df = pd.concat([small.sample(ns, random_state=0), big.sample(cap - ns, random_state=0)])
     t0 = time.time(); p = M.score(df.text.tolist()); dt = time.time() - t0
     res[key][name] = dict(doc=ev.doc_metrics(df.label.values, p), seconds=dt, n_scored=len(df), **ev.breakdown(df, p, skip=name == "spans_test"))
     print(key, name, len(df), {k: round(v, 1) for k, v in res[key][name]["doc"].items()}, f"{dt:.0f}s", flush=True)

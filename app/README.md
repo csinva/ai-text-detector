@@ -1,5 +1,7 @@
 # AI text detector web app
 
+**Deployed from a separate public repository, https://github.com/csinva/ai-text-detector-app (live: https://csinva.io/ai-text-detector-app/).** That repository holds the shipped model shards and contains no training code or internal paths; this folder is the source. Model shards are not tracked here (they are git-ignored; rebuild them with the commands below, or copy them from the public repository).
+
 A static page that runs the detector in the browser. Paste text, get a document score and a word-level heatmap. The text never leaves the device.
 
 - **Runtime.** [ONNX Runtime Web](https://onnxruntime.ai/) (WebAssembly, SIMD, threads). The task asked for WebLLM, but WebLLM only runs chat LLMs compiled to the MLC format (token generation, causal attention); this model is a bidirectional classifier with a token head and a document head, so it is exported to ONNX instead. The user experience is the same: a progress bar on the first visit, then the model is reused from the browser.
@@ -45,7 +47,7 @@ PLAYWRIGHT_BROWSERS_PATH=... python app/tools/test_e2e.py     # headless Chromiu
 
 ## Deploy
 
-`.github/workflows/pages.yml` publishes `app/` (without `tools/`) when Pages is enabled for the repository (Settings > Pages > Source: GitHub Actions). It is not enabled, so nothing is public. To host the weights elsewhere (for example a Hugging Face model repo with CORS), change `base` in `js/app.js` to the URL that serves `manifest.json` and the shards.
+Copy `app/` (without `tools/`, with the shards in `model/`) into the public repository and push to `main`; its workflow publishes the site. Browsers: tested in Chromium (Chrome, Edge, Brave engine) only; Firefox and Safari are expected to work but could not be tested on this server.
 
 ## Speed
 

@@ -44,11 +44,15 @@ worker.onmessage = (e) => {
   else if (m.type === "cleared") { say("The downloaded model was removed from this browser. Reload the page to download it again."); ready = false; refreshButtons(); }
   else if (m.type === "error") {
     $("analyze").disabled = false; $("result").querySelector(".hmx")?.classList.remove("busy");
-    if (m.where === "load") { $("loader-title").textContent = "The model could not be loaded"; $("loader-detail").textContent = ""; setBar(0); say(m.message + (location.protocol === "file:" ? " Open the page through a web server; browsers do not allow this from a file." : ""), true); }
+    if (m.where === "load") {
+      $("loader-title").textContent = "The model could not be loaded"; $("loader-detail").textContent = ""; setBar(0);
+      const hint = /memory|allocation|RangeError|out of/i.test(m.message) ? " The device ran out of memory; the model needs about 1 GB free, so try a desktop browser and close other tabs." : location.protocol === "file:" ? " Open the page through a web server; browsers do not allow this from a file." : "";
+      say(m.message + hint, true);
+    }
     else say(m.message, true);
   }
 };
-worker.onerror = (e) => { say("The worker failed: " + (e.message || "unknown error"), true); };
+worker.onerror = (e) => { $("loader-title").textContent = "The model could not be started"; say("The background worker failed (" + (e.message || "unknown error") + "). This page needs a recent Chrome, Edge, Firefox (114 or later) or Safari (16.4 or later) with WebAssembly and module workers.", true); };
 
 // ---- analysis
 function refreshButtons() {}
@@ -106,7 +110,8 @@ $("clear-cache").addEventListener("click", () => worker.postMessage({ type: "cle
 function updateCount() { const t = $("input").value.trim(); $("count").textContent = t ? `${t.split(/\s+/).length} words` : ""; }
 $("analyze").disabled = false;
 
-if (!window.isSecureContext) say("This page must be served over https (or localhost) so the model can be cached.", true);
+if (typeof WebAssembly !== "object" || typeof Worker !== "function") { $("loader-title").textContent = "This browser cannot run the model"; say("WebAssembly and web workers are required. Use a recent Chrome, Edge, Firefox or Safari.", true); }
+else if (!window.isSecureContext) say("This page must be served over https (or localhost) so the model can be cached.", true);
 navigator.storage?.persist?.();
 worker.postMessage({ type: "init", base: new URL("./model/", location.href).href });
 window.__app = { SAMPLES };
