@@ -39,7 +39,7 @@ a{color:var(--accent)} .muted{color:var(--muted)} .small{font-size:.82rem} .grow
 .side{flex:1;min-width:15rem}
 .verdict{font-weight:650;font-size:1.05rem;margin-bottom:.55rem;transition:opacity .25s}
 .meter{position:relative;height:8px;border-radius:99px;background:linear-gradient(90deg,#008bfb 0%,#ff0051 100%)}
-.meter i{position:absolute;top:50%;left:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:var(--bg);border:3px solid var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.5);transition:left .6s cubic-bezier(.2,.8,.2,1)}
+.meter i{position:absolute;top:50%;left:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:var(--bg);border:3px solid var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.5);transition:left .3s cubic-bezier(.2,.8,.2,1)}
 .ends{display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted);margin-top:.35rem}
 .map{display:flex;gap:2px;height:12px;margin-top:.7rem}
 .map b{flex:1;border-radius:3px;background:var(--fill);transform-origin:bottom;animation:rise .5s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--k,0) * 8ms)}
@@ -66,7 +66,7 @@ a{color:var(--accent)} .muted{color:var(--muted)} .small{font-size:.82rem} .grow
 .w.pend{background:linear-gradient(100deg,rgba(139,139,245,.07) 0%,rgba(139,139,245,.26) 45%,rgba(139,139,245,.07) 90%);background-size:260% 100%;box-shadow:0 0 0 .1em rgba(139,139,245,.07);animation:shimmer 1.15s linear infinite;animation-delay:calc(var(--i,0) * -70ms)}
 @keyframes shimmer{from{background-position:130% 0}to{background-position:-130% 0}}
 /* the sweep: words are scored left to right; a bright front travels with the reveal */
-.w.rv{animation:reveal .85s cubic-bezier(.2,.75,.2,1) both;animation-delay:var(--d,0ms)}
+.w.rv{animation:reveal .35s cubic-bezier(.2,.75,.2,1) both;animation-delay:var(--d,0ms)}
 @keyframes reveal{
   0%{background-color:rgba(139,139,245,0);box-shadow:0 0 0 .1em rgba(139,139,245,0);filter:none}
   30%{background-color:rgba(138,138,242,.55);box-shadow:0 0 0 .1em rgba(138,138,242,.55),0 0 22px 4px rgba(139,139,245,.5);filter:brightness(1.08)}

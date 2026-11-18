@@ -12,14 +12,23 @@ const SAMPLES = {
 const S = { ready: false, sentId: 0, doneId: 0, snap: "", probs: new Map(), timer: null, timerOn: false, lastRun: 0, analyzedWc: 0, lastLen: 0, wantRun: false, shown: new Map(), reveal: false };
 
 // ---- colour scale (the same as the report heatmaps)
-const PROB = [[0, [255, 0, 81, 0]], [0.35, [255, 0, 81, 0.2]], [0.7, [255, 0, 81, 0.45]], [1, [255, 0, 81, 0.75]]];
+const BLUE = [0, 139, 251], PINK = [255, 0, 81];
+const PROB = [[0, [...BLUE, 0.6]], [0.5, [...BLUE, 0]], [0.5001, [...PINK, 0]], [1, [...PINK, 0.8]]];
 function colorOf(p) {
   p = Math.min(Math.max(p, 0), 1);
   for (let i = 0; i < PROB.length - 1; i++) {
     const [a, ca] = PROB[i], [b, cb] = PROB[i + 1];
     if (p <= b) { const t = (p - a) / (b - a), c = ca.map((v, k) => v + t * (cb[k] - v)); return `rgba(${c[0].toFixed(0)},${c[1].toFixed(0)},${c[2].toFixed(0)},${c[3].toFixed(2)})`; }
   }
-  return "rgba(255,0,81,.75)";
+  return `rgba(${PINK},.8)`;
+}
+// relative scale: 5th to 95th percentile of the words on screen, at least MIN_SPAN wide, so colours compare words with each other
+const MIN_SPAN = 0.2;
+function rescaler(vals) {
+  if (vals.length < 2) return (p) => p;
+  const v = vals.slice().sort((x, y) => x - y), q = (f) => v[Math.min(v.length - 1, Math.floor(f * (v.length - 1) + 0.5))];
+  let lo = q(0.05), hi = q(0.95); if (hi - lo < MIN_SPAN) { const m = (lo + hi) / 2; lo = m - MIN_SPAN / 2; hi = m + MIN_SPAN / 2; }
+  return (p) => Math.min(1, Math.max(0, (p - lo) / (hi - lo)));
 }
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const wordsOf = (t) => Array.from(t.matchAll(/\S+/g), (m) => [m.index, m.index + m[0].length]);
@@ -36,9 +45,11 @@ function render() {
   const t = ta.value, words = wordsOf(t), look = lookup(t), live = S.ready && words.length >= MIN_WORDS, shown = new Map();
   const items = words.map(([s, e], k) => {
     const nxt = k + 1 < words.length ? words[k + 1][0] : -1, end = nxt >= 0 && /^[ \t]*$/.test(t.slice(e, nxt)) ? nxt : e;   // spaces belong to the chip, so highlights form a ribbon
-    const p = look(s, e); return { s, end, p, c: p === undefined ? null : colorOf(p) };
+    const p = look(s, e); return { s, end, p, c: null };
   });
-  const fresh = S.reveal ? items.filter((w) => w.c && S.shown.get(w.s) !== w.c).length : 0, step = Math.max(3, Math.min(34, 950 / Math.max(fresh, 1)));
+  const rel = rescaler(items.filter((w) => w.p !== undefined).map((w) => w.p));
+  items.forEach((w) => { if (w.p !== undefined) w.c = colorOf(rel(w.p)); });
+  const fresh = S.reveal ? items.filter((w) => w.c && S.shown.get(w.s) !== w.c).length : 0, step = Math.max(1, Math.min(12, 350 / Math.max(fresh, 1)));
   let html = "", pos = 0, nf = 0;
   items.forEach((w, k) => {
     if (w.s > pos) html += esc(t.slice(pos, w.s));
@@ -60,13 +71,13 @@ function setScore(p, text) {
   $("scorecard").classList.toggle("idle", p == null); $("verdict").textContent = text;
   if (p == null) { $("score").textContent = "–"; shownScore = 0; return; }
   const from = shownScore, to = 100 * p, t0 = performance.now(); $("meter-dot").style.left = to.toFixed(1) + "%";
-  (function f(t) { const k = Math.min(1, (t - t0) / 550), v = from + (to - from) * (1 - Math.pow(1 - k, 3)); $("score").textContent = Math.round(v); shownScore = v; if (k < 1) requestAnimationFrame(f); })(t0);
+  (function f(t) { const k = Math.min(1, (t - t0) / 250), v = from + (to - from) * (1 - Math.pow(1 - k, 3)); $("score").textContent = Math.round(v); shownScore = v; if (k < 1) requestAnimationFrame(f); })(t0);
 }
 function setMap(words) {
-  const map = $("map"), n = Math.min(56, words.length); map.replaceChildren();
+  const rel = rescaler(words.map((w) => w[2])), map = $("map"), n = Math.min(56, words.length); map.replaceChildren();
   for (let i = 0; i < n; i++) {
     const a = Math.floor(i * words.length / n), b = Math.floor((i + 1) * words.length / n); let s = 0; for (let j = a; j < b; j++) s += words[j][2];
-    const v = b > a ? s / (b - a) : 0, el = document.createElement("b"); el.style.setProperty("--k", i); if (v > 0.04) el.style.background = colorOf(v); map.appendChild(el);
+    const v = b > a ? s / (b - a) : 0, el = document.createElement("b"); el.style.setProperty("--k", i); el.style.background = colorOf(rel(v)); map.appendChild(el);
   }
 }
 const label = (p) => (p < 0.2 ? "Looks human-written" : p < 0.6 ? "Mixed or uncertain" : "Looks AI-generated");
