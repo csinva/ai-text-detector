@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Build reports/00_ai_text_detector.html from the run outputs under $V45_DATA_ROOT/data/aidetect/{runs,licensed}.
+"""Build reports/00_data.html, 01_runs.html and 02_demo.html from the run outputs under $V45_DATA_ROOT/data/aidetect/{runs,licensed}.
 
   python 09_report.py        (CPU only; renders the heatmap figures with the reference model on CPU)
 """
-import html, importlib.util, json, os, subprocess, sys
+import html, importlib.util, json, os, re, subprocess, sys
 import numpy as np, pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
 D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect"); R = f"{D}/runs"
-HERE = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(HERE, "..", "reports", "00_ai_text_detector.html")
+HERE = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(HERE, "..", "reports", "00_data.html")
 spec = importlib.util.spec_from_file_location("ev", os.path.join(HERE, "04_eval.py")); ev = importlib.util.module_from_spec(spec); spec.loader.exec_module(ev)
 J = lambda p: json.load(open(p)) if os.path.exists(p) else {}
 
@@ -146,7 +146,7 @@ def tab_r4():
                     ("Held-out new domains, pure AI, AUROC", lambda k: nw[k]["gen_id"]["doc"]["auroc"] if nw[k] else None)):
         v = {k: f_(k) for _, k in names}
         r2 += f"<tr><td>{lbl}</td><td>{v[REF]:.1f}</td>" + "".join(f"<td>{'n/a' if v[k] is None else d(v[k], v[REF])}</td>" for _, k in names[1:]) + "</tr>"
-    t2 = ("<div class=wide><table id=tab-20><caption style='text-align:left'><b>Table 20.</b> Humanizer benchmarks ([Table 18](#tab-18) protocol) and the held-out passages of the new domains (case law, Stack Exchange, regulations, peS2o and more, split by document hash; the round-2 model never saw these domains). Differences are to the round-2 final model.</caption>"
+    t2 = ("<div class=wide><table id=tab-20><caption style='text-align:left'><b>Table 20.</b> Humanizer benchmarks (Table <a href='#tab-18'>18</a> protocol) and the held-out passages of the new domains (case law, Stack Exchange, regulations, peS2o and more, split by document hash; the round-2 model never saw these domains). Differences are to the round-2 final model.</caption>"
           f"<tr><th>Measure</th>" + "".join(f"<th>{n}</th>" for n, _ in names) + f"</tr>{r2}</table></div>")
     return t1 + t2
 
@@ -333,12 +333,14 @@ EVAL_ROWS = [("MAGE test, SQuAD domain", "https://huggingface.co/datasets/yaful/
              ("WasItAIGenerated 2026-09", "https://huggingface.co/datasets/wasitaigeneratedcom/ai-detector-benchmark-2026-09", "Sept 2026: English rows whose text is CC BY 4.0 or MIT: human texts, AI text from 2026 models (GPT-6, Claude Opus 5.5, Gemini 3.8 and others), paraphrased AI text and AI text rewritten by six commercial humanizers"),
              ("Heterogeneous AI Spans test", "https://huggingface.co/datasets/open-text-detector/heterogeneous-ai-spans", "Oct 2026: mixed documents and human controls without JMLR text; exact character spans of Claude-written text; word and document level"),
              ("RAID splices", "https://huggingface.co/datasets/liamdugan/raid", "sentence splices of held-out human texts with held-out generators (word level)"),
-             ("Generated text (gen_id, gen_unseen_gen, gen_unseen_domain, gen_mixed, gen_humanized, gen_edit, gen_newgen)", "https://huggingface.co/common-pile", "8% of the Common Pile passages (by hash) and their AI counterparts, never trained on: seen generators and registers, OLMo-2 and Phi-4-mini texts that the held-out model never saw, Hansard and Foodista registers that it never saw, human-prefix + AI-continuation texts with exact spans (word level), humanizer-style rewrites, human texts with AI-rewritten sentences (word level) and texts of the two newest generators")]
+             ("Generated text (gen_id, gen_unseen_gen, gen_unseen_domain, gen_mixed, gen_humanized, gen_edit, gen_newgen)", "https://huggingface.co/common-pile", "8% of the Common Pile passages (by hash) and their AI counterparts, never trained on: seen generators and registers, OLMo-2 and Phi-4-mini texts that the held-out model never saw, Hansard and Foodista registers that it never saw, human-prefix + AI-continuation texts with exact spans (word level), humanizer-style rewrites, human texts with AI-rewritten sentences (word level) and texts of the two newest generators"),
+             ("OpAI-Bench test (evaluation only)", "https://huggingface.co/datasets/OpAI-Bench1/OpAI-Bench", "Nov 2026: 4,754 documents each with a human seed (v0) and eight progressively AI-edited versions (GPT-5.4, GPT-5.4-nano, Gemini 2.5 Flash, Qwen3-8B; essays, news, reports, abstracts) with character spans. Apache-2.0 on the card, human seed provenance not stated, so never trained on"),
+             ("HumanizerBench and AI Humanizer Benchmark (evaluation only)", "https://huggingface.co/datasets/HumanizerBench/humanizerbench", "June to November 2026, CC BY 4.0: 3,610 outputs of 19 commercial humanizers plus their raw LLM inputs; thresholds from pooled human texts of WasItAIGenerated, TextSight and the Common Pile eval split")]
 
 
 def eval_table():
     h = "<tr><th>Set</th><th>Level</th><th>Source and notes</th></tr>"
-    rows = "".join(f"<tr><td><a href='{u}'>{n}</a></td><td>{'word' if ('splices' in n or 'gen_mixed' in n) else 'document' + (' + word' if 'Spans' in n else '')}</td><td>{d_}</td></tr>" for n, u, d_ in EVAL_ROWS)
+    rows = "".join(f"<tr><td><a href='{u}'>{n}</a></td><td>{'word' if ('splices' in n or 'gen_mixed' in n) else 'document' + (' + word' if ('Spans' in n or 'OpAI' in n) else '')}</td><td>{d_}</td></tr>" for n, u, d_ in EVAL_ROWS)
     return f'<div class=wide><table id=tab-3><caption style="text-align:left"><b>Table 3.</b> Held-out evaluation sets (licensed data only). Training texts are removed if their normalized first 400 characters match any evaluation text.</caption>{h}{rows}</table></div>'
 
 
@@ -360,6 +362,99 @@ CSS = """<style>.pos{color:var(--accent)} .neg{color:var(--bad)} .wide{overflow-
 table{border-collapse:collapse;font-size:.85rem;margin:.6rem 0} th,td{border:1px solid var(--border);padding:.25rem .5rem;text-align:left;vertical-align:top} caption{margin-bottom:.3rem;font-size:.85rem;color:var(--text-2)}</style>"""
 import heatmap
 CSS = CSS.replace("</style>", heatmap.CSS + "</style>")
+
+
+TMAP = {"data": {1: 1, 3: 2, 21: 3, 22: 4, 2: 5, 23: 6}, "runs": {o: o - 3 for o in range(4, 21)}, "demo": {}}   # authored table id -> number on that page
+SMAP = {"data": {"2": "1", "d2": "2", "d3": "3", "d4": "4"}, "runs": {"1": "1", "3": "2", "3-1": "2-1", "3-2": "2-2", "3-3": "2-3", "3-4": "2-4", "4": "3", "5": "4", "6": "5", "7": "6"},
+        "demo": {"m1": "1", "m2": "2", "m3": "3"}}
+FILES = {"data": "00_data.html", "runs": "01_runs.html", "demo": "02_demo.html"}; PRE = {"data": "Data ", "runs": "Runs ", "demo": "Demo "}
+
+
+def order_map(h):
+    """authored table id -> number by order of first appearance on the page"""
+    seen = []
+    for n in re.findall(r"id=tab-(\d+)", h):
+        if int(n) not in seen: seen.append(int(n))
+    return {n: i + 1 for i, n in enumerate(seen)}
+
+
+def remap(h, page, TMAP):
+    """Renumber tables and sections of one page; references that belong to another page become links ('Data Table 3', 'Runs Sec. 2')."""
+    def find(m_, k):
+        for pg in (page, *[x for x in FILES if x != page]):
+            if k in m_[pg]: return pg, m_[pg][k]
+        return None, None
+    def tab(m):
+        n = int(next(g for g in m.groups() if g and g.isdigit())); pg, new = find(TMAP, n)
+        if m.group(0).startswith("id=tab-"): return f"id=tab-{new}" if pg == page else m.group(0)
+        if pg is None: return m.group(0)
+        if pg == page: return f"Table <a href='#tab-{new}'>{new}</a>" if "<a" in m.group(0) else f"Table {new}"
+        return f"{PRE[pg]}Table <a href='{FILES[pg]}#tab-{new}'>{new}</a>"
+    h = re.sub(r"<a href='#tab-(\d+)'>Table \d+</a>|Table <a href='#tab-(\d+)'>\d+</a>|id=tab-(\d+)|Table (\d+)\b", tab, h)
+    def sec(m):
+        pg, new = find(SMAP, m.group(1))
+        if pg is None: return m.group(0)
+        lab = new.replace("-", ".")
+        return f"Sec. <a href='#sec-{new}'>{lab}</a>" if pg == page else f"{PRE[pg]}Sec. <a href='{FILES[pg]}#sec-{new}'>{lab}</a>"
+    h = re.sub(r"<a href='#sec-([\w-]+)'>(?:Sec\. )?[\d.]+</a>", sec, h)
+    def head(m):
+        k = m.group(2)
+        if k in SMAP[page]: new = SMAP[page][k]; return f"{m.group(1)}id=sec-{new}>{new.replace('-', '.')}{'.' if '-' not in new else ''} "
+        return m.group(0)
+    return re.sub(r"(<h[23] )id=sec-([\w-]+)>[\d.]+ ", head, h)
+
+
+def pool_table():
+    h = pd.read_parquet(f"{D}/licensed/human_cp.parquet", columns=["src", "license", "year"])
+    rnd = {"stackexchange": "1, 2", "news_blog": "3, 4", "usgpo": "3"}; desc = {"stackexchange": "Stack Exchange posts (informal Q and A)", "arxiv_abstract": "arXiv abstracts", "pubmed": "PubMed Central paragraphs", "gutenberg": "Project Gutenberg books",
+        "pre1929_books": "books published before 1929", "uk_hansard": "UK parliamentary speeches", "foodista": "food blog and recipe posts", "news_blog": "Global Voices posts (citizen media, 2004 to 2008)", "usgpo": "US GPO documents (public domain)",
+        "se2": "Stack Exchange posts, second batch", "pes2o": "open-access papers (peS2o, CC BY and CC0)", "arxiv_full": "arXiv full-text papers (ids 0701 to 1712)", "caselaw": "US court opinions (Caselaw Access Project)",
+        "regulations": "US regulations.gov documents", "usgpo2": "US GPO documents, second batch", "pubmed2": "PubMed Central paragraphs, second batch"}
+    first = {"stackexchange": 1, "arxiv_abstract": 1, "pubmed": 1, "gutenberg": 1, "pre1929_books": 1, "uk_hansard": 1, "foodista": 1, "news_blog": 3, "usgpo": 3}
+    rows = ""
+    for s_, g in h.groupby("src", sort=False):
+        y = g.year[g.year > 0]; lic = g.license.str.replace(r"\s*-\s*https?://\S+", "", regex=True).str.slice(0, 40).mode().iat[0] if len(g) else ""
+        rows += f"<tr><td>{s_}</td><td>{len(g):,}</td><td>{desc.get(s_, '')}</td><td>{html.escape(str(lic))}</td><td>{'' if y.empty else f'{int(y.min())} to {int(y.max())}'}</td><td>{rnd.get(s_, first.get(s_, 4))}</td></tr>"
+    rows += f"<tr><td><b>Total</b></td><td><b>{len(h):,}</b></td><td></td><td></td><td></td><td></td></tr>"
+    return (f"<div class=wide><table id=tab-21><caption style='text-align:left'><b>Table 21.</b> Human text pool (licensed/human_cp.parquet): passages of 500 to 2,200 characters cut from Common Pile documents with a per-document open licence, "
+            f"English only, de-duplicated. Dated sources are kept for 2017 or earlier; the last column is the round in which the source was added.</caption><tr><th>Source</th><th>Passages</th><th>Description</th><th>Most common licence</th><th>Years</th><th>Round</th></tr>{rows}</table></div>")
+
+
+def gen_table():
+    G = f"{D}/licensed/gen"; rows = {}
+    for f in sorted(os.listdir(G)):
+        if not f.endswith(".parquet") or "smoke" in f: continue
+        rnd = 4 if "r4" in f else 3 if "r3" in f else 2 if f.startswith("r2_") else 1
+        mode = f[:-8].rsplit("_", 1)[-1] if f.startswith("r2_") else "std"
+        g = pd.read_parquet(f"{G}/{f}", columns=["gen_model"]).gen_model.value_counts()
+        for m_, n in g.items(): rows.setdefault((rnd, mode), {})[m_] = rows.get((rnd, mode), {}).get(m_, 0) + int(n)
+    gens = ["qwen3_8b", "qwen3_4b", "mistral7b", "phi4mini", "olmo2_7b", "smollm3", "gptoss20b", "qwen3_30b"]
+    lab = {"std": "new text (continue, rewrite, write, casual)", "humanize": "humanizer-style rewrite of an AI text", "edit": "sentence-level edits in human text", "block": "block edits (polish, paraphrase, style, compress, expand)"}
+    body = "".join(f"<tr><td>{r_}</td><td>{lab.get(m, m)}</td>" + "".join(f"<td>{v.get(g, 0):,}</td>" for g in gens) + f"<td>{sum(v.values()):,}</td></tr>" for (r_, m), v in sorted(rows.items()))
+    tot = sum(sum(v.values()) for v in rows.values())
+    body += f"<tr><td colspan=2><b>Total</b></td>" + "".join(f"<td><b>{sum(v.get(g, 0) for v in rows.values()):,}</b></td>" for g in gens) + f"<td><b>{tot:,}</b></td></tr>"
+    return (f"<div class=wide><table id=tab-22><caption style='text-align:left'><b>Table 22.</b> Generated AI texts by round, mode and generator, before filtering and mixing (vLLM, Apache-2.0 or MIT models; GPT-OSS-20B and Qwen3-30B-A3B generate in rounds 2 to 4 only).</caption>"
+            f"<tr><th>Round</th><th>Mode</th>{''.join(f'<th>{g}</th>' for g in gens)}<th>Total</th></tr>{body}</table></div>"), tot
+
+
+def mix_table():
+    rows = ""
+    for name, lab in (("tok_lic3_r10_full", "round 2 final (1.0:1)"), ("tok_lic4_r10_full", "round 3 (1.0:1)"), ("tok_lic5_r10_full", "round 4, 1.0:1"), ("tok_lic5_r15_full", "round 4, 1.5:1"), ("tok_lic5_r20_full", "round 4, 2.0:1")):
+        if not os.path.exists(f"{D}/{name}/train_off.npy"): continue
+        off = np.load(f"{D}/{name}/train_off.npy"); lab_ = np.load(f"{D}/{name}/train_lab.npy", mmap_mode="r"); lens = np.diff(off)
+        sel = np.random.RandomState(0).choice(len(lens), 4000, replace=False)
+        w = sum(float(lab_[off[j]:off[j + 1]].astype(np.float32).sum()) / 255 for j in sel) / sum(int(lens[j]) for j in sel)
+        rows += f"<tr><td>{lab}</td><td>{len(lens):,}</td><td>{off[-1] / 1e6:.0f}</td><td>{100 * w:.0f}</td><td>{name}</td></tr>"
+    return (f"<div class=wide><table id=tab-23><caption style='text-align:left'><b>Table 23.</b> Training mixtures by round (tokenized, with the voyage-4-nano tokenizer). The ratio is the number of AI texts per human text in the generated registers; "
+            f"the share of AI tokens is estimated on 4,000 random documents.</caption><tr><th>Mixture</th><th>Documents</th><th>Tokens (M)</th><th>AI share of tokens (%)</th><th>Directory</th></tr>{rows}</table></div>")
+
+
+DATA_JOB = re.compile(r"gen|hm-|human|prep|search|download", re.I)
+
+
+def head(t):
+    return (f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>{t}</title><link rel=stylesheet href='theme.css'>{CSS}</head><body>"
+            "<nav class=topnav><a href='index.html'>&larr; All reports</a> &middot; <a href='00_data.html'>00 Data</a> &middot; <a href='01_runs.html'>01 Runs</a></nav>")
 
 
 def main():
@@ -395,22 +490,39 @@ def main():
     SEC32 = ("<p>The second round tested whether more licensed data and cheap training changes close the gap to the commercial humanizers. Data: 18k more Stack Exchange passages (informal Q&A, 2017 or earlier), 27,010 humanizer-style rewrites of AI text by a different model, 37,990 passages with 1 to 6 sentences replaced by an AI rewrite (exact spans), and 29,154 texts from gpt-oss-20b and Qwen3-30B-A3B (Apache-2.0). Training changes tried: AI : human document ratio 1.3 : 1 against 1 : 1, a 1B-token run, and the document score taken from the mean token probability instead of the document head (<a href='#tab-8'>Table 8</a>). "
              "Findings: (1) the previous model already scored 99.8 on my humanizer-style rewrites and 99.9 on the two newer generators, so those were not gaps in my own pipeline; only sentence-level edits improved a lot. (2) On the external sets the data change alone was flat and raised false positives (the mix then held more AI than human documents); balancing 1 : 1 recovered part of that and gave the best WasItAIGenerated and TextSight numbers. (3) The two aggregators give the same AUROC; the mean token probability gives higher TPR at 1% FPR on three sets and lower on sentence edits. "
              "(4) The final model was chosen among these variants on WasItAIGenerated and TextSight, the same sets it is reported on, so differences under about 1 AUROC point are within selection noise.</p>")
-    parts = []; A = parts.append
-    A(f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>AI text detector</title><link rel=stylesheet href='theme.css'>{CSS}</head><body>")
-    A("<nav class=topnav><a href='index.html'>&larr; All reports</a></nav>")
-    A("<h1>00. AI-generated text detector with word-level heatmaps, from voyage-4-nano (licensed data only)</h1>")
-    A(f"<p class=box><b>Summary.</b> {summ} Generated {strftime('%Y-%m-%d %H:%M')} UTC.</p>")
+    P0, P1, P2 = [], [], []; A = P1.append; A0 = P0.append; A2 = P2.append
+    stamp = strftime('%Y-%m-%d %H:%M')
+    A(head("AI detector runs"))
+    A("<h1>01. AI-generated text detector: training runs and results</h1>")
+    A(f"<p class=box><b>Summary.</b> {summ} Generated {stamp} UTC.</p>")
     A("<h2 id=sec-1>1. Design</h2><ul>"
       "<li><b>Model.</b> The shipped voyage-4-nano weights (Apache-2.0; Qwen3 layers, hidden size 1,024, 16 query and 8 key-value heads, 12 layers). The 2,048-dimension embedding projection is dropped. A linear token head maps every final hidden state to a logit for &ldquo;this token is AI-written&rdquo;; a linear document head acts on the mean of the hidden states. Attention is bidirectional, so a word is judged with the text before and after it.</li>"
       "<li><b>Labels.</b> Every training document has AI character spans: none for human text, the whole text for AI text, and exact spans for mixed documents. A token's target is the fraction of its characters inside AI spans. The document target is the mean token target of the cropped window, so for a mixed text the document score estimates the share of AI text. Loss = BCE on tokens + BCE on the document logit.</li>"
       "<li><b>Word heatmap.</b> A word's probability is the mean probability of the tokens ending inside it. The document score is the length-weighted mean of the document logits of 1,024-token windows (the last window is anchored to the end).</li>"
       "<li><b>Splices.</b> RAID contains a human text and several AI texts for the same prompt, so alternating runs of sentences from the two gives topic-matched mixed documents with exact word labels (96,276 in training). The Heterogeneous AI Spans data adds real model-written spans in human-origin text.</li></ul>")
-    A("<h2 id=sec-2>2. Data and licences</h2>")
-    A("<p><b>Rule.</b> Text is kept only if its rights trace to an explicit licence that allows commercial use (public domain, CC0, CC BY, CC BY-SA, MIT, Apache-2.0, Open Parliament Licence) or to a per-row licence of that kind. It is dropped when the licence is non-commercial, research-only, &ldquo;other&rdquo; or undeclared, and when it is scraped third-party text (news, reviews, forum posts, poems, recipes), even if the aggregate dataset card says MIT or Apache, because a card cannot grant rights to text its author does not hold. Machine-written text is dropped when the generator's weights are released under non-commercial or research-only terms (LLaMA-1, OPT, GLM-130B, MPT-30B-Chat). CC BY-SA text carries attribution and share-alike duties. OpenAI and Llama 2 terms forbid using their outputs to train competing generative models, not classifiers. This is an engineering audit from published terms, not legal advice.</p>")
-    A(audit_table())
-    A("<p>Datasets published in the last two months and used: Heterogeneous AI Spans (2026-10-05), TextSight 2026 (2026-09-30) and WasItAIGenerated 2026-09 (2026-09-25, per-row licences). Other recent sets were inspected and dropped for licence reasons (Table <a href='#tab-1'>1</a>).</p>")
-    A(corpus_table()); A(eval_table())
-    A("<p>Held-out design. 8% of RAID source documents (all their generations and attacks) are excluded from every model. The <i>held-out</i> model additionally never sees three generators (gpt4, mistral-chat, cohere), the abstracts domain and three attacks (paraphrase, homoglyph, article deletion); the reference model trains on those too. Everything else in <a href='#tab-3'>Table 3</a> is held out for all models.</p>")
+    gtab, gtot = gen_table(); nd5 = np.load(f"{D}/tok_lic5_r15_full/train_off.npy") if os.path.exists(f"{D}/tok_lic5_r15_full/train_off.npy") else None
+    A0(head("AI detector data"))
+    A0("<h1>00. Data for the AI-generated text detector: sources, licences, mixtures and evaluation sets</h1>")
+    A0(f"<p class=box><b>Summary.</b> {n_keep} datasets and models were audited for commercial use and kept, {n_drop} were dropped (<a href='#tab-1'>Table 1</a>). The licensed human text pool has {nhum:,} passages from 16 Common Pile and related sources (2017 or earlier where dated; <a href='#tab-21'>Table 21</a>). "
+       f"{gtot:,} AI texts were generated from them with eight Apache-2.0 or MIT models in four modes (<a href='#tab-22'>Table 22</a>). The training mixtures hold {ndocs / 1e3:.0f}k documents and {ntok / 1e6:.0f}M tokens (round 2 final) up to {(len(nd5) - 1) / 1e3 if nd5 is not None else 0:.0f}k documents and {nd5[-1] / 1e6 if nd5 is not None else 0:.0f}M tokens (round 4, <a href='#tab-23'>Table 23</a>). "
+       f"{len(EVAL_ROWS)} evaluation sets or families are listed (<a href='#tab-3'>Table 3</a>), two of them evaluation only because their human text has no stated provenance or they come from commercial tools. Generated {stamp} UTC.</p>")
+    A0("<h2 id=sec-2>2. Data and licences</h2>")
+    A0("<p><b>Rule.</b> Text is kept only if its rights trace to an explicit licence that allows commercial use (public domain, CC0, CC BY, CC BY-SA, MIT, Apache-2.0, Open Parliament Licence) or to a per-row licence of that kind. It is dropped when the licence is non-commercial, research-only, &ldquo;other&rdquo; or undeclared, and when it is scraped third-party text (news, reviews, forum posts, poems, recipes), even if the aggregate dataset card says MIT or Apache, because a card cannot grant rights to text its author does not hold. Machine-written text is dropped when the generator's weights are released under non-commercial or research-only terms (LLaMA-1, OPT, GLM-130B, MPT-30B-Chat). CC BY-SA text carries attribution and share-alike duties. OpenAI and Llama 2 terms forbid using their outputs to train competing generative models, not classifiers. This is an engineering audit from published terms, not legal advice.</p>")
+    A0(audit_table())
+    A0("<p>Datasets published in the last two months and used: Heterogeneous AI Spans (2026-10-05), TextSight 2026 (2026-09-30) and WasItAIGenerated 2026-09 (2026-09-25, per-row licences). Other recent sets were inspected and dropped for licence reasons (Table <a href='#tab-1'>1</a>).</p>")
+    A0(eval_table())
+    A0("<p>Held-out design. 8% of RAID source documents (all their generations and attacks) are excluded from every model. The <i>held-out</i> model additionally never sees three generators (gpt4, mistral-chat, cohere), the abstracts domain and three attacks (paraphrase, homoglyph, article deletion); the reference model trains on those too. Everything else in <a href='#tab-3'>Table 3</a> is held out for all models.</p>")
+    A0("<h2 id=sec-d2>2. Human text pool</h2>")
+    A0("<p>All human negatives are passages of 500 to 2,200 characters cut at paragraph boundaries from documents that carry an open licence, with text from 2017 or earlier where the source is dated (dated sources: Stack Exchange creation date, peS2o year, arXiv id, Global Voices url). "
+       "Round 1 started with books, abstracts, PubMed, parliamentary and recipe text; round 2 added Stack Exchange; round 3 Global Voices and US GPO; round 4 case law, more Stack Exchange and PubMed, regulations, peS2o and arXiv full text. Passages are trimmed to sentence ends so that a cut is not a label, and exact duplicates are dropped.</p>")
+    A0(pool_table())
+    A0("<h2 id=sec-d3>3. Generated AI text</h2>")
+    A0("<p>Every passage is assigned by hash to one generator and one task. <b>New text</b>: continue the passage from a human prefix (exact span labels), rewrite it, write a new text for the same register, or write it casually. <b>Humanizer-style</b>: a second model rewrites an AI text to sound human (pure AI, or human prefix plus humanized continuation). <b>Sentence edits</b>: about 30% of the sentences of a human passage are rewritten by a model. <b>Block edits</b> (round 4): 1 to 4 sentence blocks are polished, paraphrased, restyled, compressed or expanded at 10 to 100% coverage. "
+       "Typography is not a label: curly quotes and dashes are straightened in 55% of AI texts, cut-off generations are trimmed, and texts that match any evaluation text in their first 400 characters are removed. Generators: Qwen3-8B, Qwen3-4B-Instruct-2507, Mistral-7B-Instruct-v0.3, Phi-4-mini-instruct, OLMo-2-1124-7B-Instruct, SmolLM3-3B, GPT-OSS-20B, Qwen3-30B-A3B-Instruct-2507.</p>")
+    A0(gtab)
+    A0("<h2 id=sec-d4>4. Training mixtures</h2>")
+    A0(corpus_table()); A0(mix_table())
+    A0("<p>Evaluation-only sets: OpAI-Bench (Apache-2.0 declared, human seed provenance not stated) and the two humanizer benchmarks (CC BY 4.0, outputs of commercial tools) are never trained on; their results are in the runs report.</p>")
     A("<h2 id=sec-3>3. Training and MFU</h2>")
     A(f"<p>One H100, bf16 autocast over fp32 master weights, fused AdamW (betas 0.9 / 0.98, weight decay 0.01, head lr 1e-3), cosine schedule with 3% warmup, lr 1.5e-4, 600M tokens (about 3.5 epochs of the 171M-token mixture; 262k tokens per optimizer step; the held-out model 450M), windows of up to 1,024 tokens with 25% of windows cut to a random length between 16 and 1,024, frozen embedding table. Hyperparameters (lr, bidirectional attention, frozen embeddings) were chosen in short runs on an earlier data mix that included non-commercial sources; those runs and their models were discarded and are not reported, and the final models were retrained from the original weights.</p>")
     A("<p>Documents are packed back to back into fixed 65,536-token micro-batches and attended with FlashAttention-3 varlen (no padding, static shapes so the non-attention parts of each layer compile with <code>torch.compile</code>, fused QKV and gate-up projections). The PyTorch profiler splits kernel time (approximately) into GEMMs 36%, FlashAttention 12%, fused elementwise kernels 22% and other 30%; micro-batch size and autotuning change MFU by under 1 point and FlashAttention-3 over flash-attn 2 gains 2.7 points.</p>")
@@ -425,8 +537,6 @@ def main():
     A(tab_doc("auroc", "Table 9. Document AUROC (0-100).", "tab-9")); A(wasit_groups()); A(tab_doc("tpr1", "Table 11. True positive rate (%) at 1% false positive rate.", "tab-11"))
     A("<p>Held-out generators, domain and attacks:</p>"); A(tab_ood())
     A("<h2 id=sec-5>5. Word-level results</h2>"); A(tab_word())
-    A("<h3 id=fig-1>Figure 1. Word heatmaps on mixed and pure texts</h3><p>Each word is shaded by the mean P(AI) of its tokens (the token head). Dotted underline marks words inside a true AI span. The first four cards are real Claude-written spans inside human-origin text (Heterogeneous AI Spans test set), the next three are RAID splices that alternate sentences of a human text and an AI text written for the same prompt (held-out source documents), then two human Stack Exchange and PubMed passages continued by the open generators (gen_mixed), then one fully AI and one fully human passage from TextSight 2026. For a mixed text the document score estimates the share of AI text. The cards are fixed random draws, not selected for success: document scores track the true AI share on most cards and overshoot on some (a Cohere books splice with 72% AI scores 98%, a PubMed continuation with 44% AI scores 66%).</p>")
-    A(figs(f"{R}/{REF}/model.pt"))
     A("<h2 id=sec-6>6. CPU inference</h2>"); A(tab_cpu()); A(int8_table())
     A("<p>Quantizing the MLP down projections as well (all linear layers) moved the document logit by +3.8 on average and lowered AUROC in a direct test on the earlier model (AUROC 99.98 to 99.25, false positive rate at 0.5 from 1.3% to 45%), probably because of outlier activations at the down projection input; keeping those layers and the heads in fp32 leaves the logit within 0.03 on average (correlation 0.999) (<code>aidetect/diag_quant.py</code>).</p>")
     A("<h2 id=sec-7>7. Caveats</h2><ul>"
@@ -435,16 +545,43 @@ def main():
       "<li>TextSight 2026 has 56 AI passages, so its TPR values move in steps of 1.8 points.</li>"
       "<li>MAGE-SQuAD, RAID and the Spans data are in-distribution sources for training (held-out documents); RAID unseen generators, domain and attacks, TextSight 2026 and WasItAIGenerated are the shifted checks. Several widely used benchmarks (SemEval-2024 task 8, HC3, RoFT, MAGE out-of-distribution sets) are no longer evaluated because their text is not commercially licensed.</li>"
       "<li>The comparison detectors are single checkpoints run as packaged, truncated at 512 tokens, and were not tuned on these sets. The licence audit covers data and model weights, not the legal status of model outputs beyond the terms quoted in Sec. <a href='#sec-2'>2</a>; have counsel review it before commercial release.</li></ul>")
-    rows = sacct_hours(jobs.get("all", []))
+    rows_all = sacct_hours(jobs.get("all", [])); rows = [r for r in rows_all if not DATA_JOB.search(r[1])]; rows_d = [r for r in rows_all if DATA_JOB.search(r[1])]
     crow = "".join(f"<tr><td>{n}</td><td>{j}</td><td>{h_:.2f}</td><td>{g}</td><td>{nh_:.3f}</td></tr>" for j, n, h_, g, nh_ in rows)
     tot = sum(r[4] for r in rows)
     mrows = "".join(f"<tr><td>{lab}</td><td>{ms[k]['tokens'] / 1e6:.0f}</td><td>{ms[k]['secs'] / 3600:.2f}</td><td>{ms[k]['tok_s'] / 1e3:.0f}k</td><td>{ms[k]['mfu']:.1f}</td></tr>" for k, lab, _ in MODELS + [(V3A, "voyage-4-nano, round 2, 1.3:1", 12), (V3R, "voyage-4-nano, round 2, 1:1", 12), (V3L, "voyage-4-nano, round 2, 1:1, 1B tokens", 12), (OOD, "voyage-4-nano, round 2, held-out", 12)])
     A(f"<details><summary>Computational cost</summary><p>Everything ran on one H100 (80GB HBM3) at a time through Slurm partition P4 (jobs were preempted and resumed from checkpoints when needed). Evaluating all sets takes about {fin.get('_total_seconds', 0) / 60:.0f} minutes on one H100 for the reference model.</p>"
       f"<table><caption style='text-align:left'><b>Training throughput</b> (logged optimizer steps only)</caption><tr><th>Run</th><th>Tokens (M)</th><th>H100 hours</th><th>Tokens/s</th><th>MFU (%)</th></tr>{mrows}</table>"
       f"<table id=tab-16><caption style='text-align:left'><b>Table 16.</b> H100 node hours (elapsed hours x GPUs / 8) per Slurm job, including preempted and failed attempts (the 28-layer run ran out of memory once and about a dozen jobs were preempted and resumed or resubmitted); total {tot:.2f}. CPU jobs used no GPU.</caption><tr><th>Job</th><th>Slurm id</th><th>Elapsed (h)</th><th>GPUs</th><th>H100 node hours</th></tr>{crow}</table></details>")
-    A(REPRO)
-    open(OUT, "w").write("\n".join(parts))
-    print("wrote", os.path.abspath(OUT), "chars", sum(map(len, parts)))
+    A(REPRO_RUNS)
+    rd = "".join(f"<tr><td>{n}</td><td>{j}</td><td>{h_:.2f}</td><td>{g}</td><td>{nh_:.3f}</td></tr>" for j, n, h_, g, nh_ in rows_d)
+    A0(f"<details><summary>Computational cost</summary><p>Data extraction ran on CPU jobs (Common Pile streaming, 4 cores each); generation used vLLM on one H100 per job (about 25 to 35 minutes for 8 models on 142k passages in parallel); tokenization and mixing ran on the login node. Generation and prep jobs listed here used {sum(r[4] for r in rows_d):.2f} H100 node hours in total, about {gtot / max(sum(r[4] for r in rows_d), 1e-9) / 1e3:.0f}k generated texts per node hour.</p>"
+       f"<table><tr><th>Job</th><th>Slurm id</th><th>Elapsed (h)</th><th>GPUs</th><th>H100 node hours</th></tr>{rd}</table></details>")
+    A0(REPRO_DATA)
+    A2(head("AI detector demo"))
+    A2("<h1>02. AI-generated text detector: heatmaps and usage</h1>")
+    A2(f"<p class=box><b>Summary.</b> Eleven word-level heatmap cards from the reference model (<code>runs/{REF}/model.pt</code>): mixed texts with exact AI spans (Claude-written spans, RAID sentence splices, open-model continuations and edits) and pure AI or human texts from TextSight 2026. Word-level AUROC on Claude-written spans is {get(fin, 'spans_test', 'word_auroc', 'word'):.1f} and document IoU {get(fin, 'spans_test', 'mean_doc_iou', 'word'):.1f}; on OpAI-Bench mixed texts the word AUROC is {get(res[REF], 'opai_spans', 'word_auroc', 'word'):.1f}. "
+       + (f"A 512-token document takes {cpu8[0]['sec_per_doc']:.2f} s on 8 CPU cores and {cpu1[0]['sec_per_doc']:.2f} s on one core (int8). " if cpu8 and cpu1 else "") + f"Usage: <code>aidetect/predict.py</code> prints the document score and writes an HTML heatmap. Generated {stamp} UTC.</p>")
+    A2("<h2 id=sec-m1>1. Word heatmaps</h2>")
+    A2("<h3 id=fig-1>Figure 1. Word heatmaps on mixed and pure texts</h3><p>Each word is shaded by the mean P(AI) of its tokens (the token head). Dotted underline marks words inside a true AI span. The first four cards are real Claude-written spans inside human-origin text (Heterogeneous AI Spans test set), the next three are RAID splices that alternate sentences of a human text and an AI text written for the same prompt (held-out source documents), then two human Stack Exchange and PubMed passages continued by the open generators (gen_mixed), then one fully AI and one fully human passage from TextSight 2026. For a mixed text the document score estimates the share of AI text. The cards are fixed random draws, not selected for success: document scores track the true AI share on most cards and overshoot on some (a Cohere books splice with 72% AI scores 98%, a PubMed continuation with 44% AI scores 66%).</p>")
+    A2(figs(f"{R}/{REF}/model.pt"))
+    A2("<h2 id=sec-m2>2. How the scores are computed</h2><ul><li><b>Word score.</b> The mean probability of the tokens ending inside the word, from the token head. The shading in the cards is this probability.</li>"
+       "<li><b>Document score.</b> The length-weighted mean of the document logits of 1,024-token windows (the last window is anchored to the end), passed through a sigmoid. For a mixed text it estimates the share of AI text, not a yes or no; the evaluation tables in the runs report threshold it at 1% false positive rate on human text.</li>"
+       "<li><b>Speed.</b> int8 dynamic quantization of the attention and MLP up projections (MLP down projections and heads stay fp32) matches fp32 accuracy on CPU; see the CPU table in the runs report.</li></ul>")
+    A2("""<h2 id=sec-m3>3. Use the detector</h2><pre>export V45_DATA_ROOT=/data18/voyage_4_5_experiments
+M=$V45_DATA_ROOT/data/aidetect/runs/lic3_nano_r10/model.pt        # default (round 2 final); lic5_nano_r15 is the round-4 alternative
+python aidetect/predict.py --model $M --file doc.txt --html heat.html            # document score, per-word scores, heatmap card
+python aidetect/predict.py --model $M --file doc.txt --device cpu --quant 2      # int8 on CPU
+
+# from Python
+import sys; sys.path.insert(0, 'aidetect')
+from infer import Predictor
+P = Predictor(M, device='cpu', quant=2)
+r = P.predict([text])[0]          # r['doc_prob'], r['tok_prob_mean'], r['words'] = [(start, end, p_ai), ...]
+</pre><p>The weights are fp32 (1.4 GB; the frozen embedding table is most of it). Windows of 1,024 tokens are scored independently, so long documents scale linearly.</p>""")
+    A2(REPRO_DEMO)
+    raw = {"data": "\n".join(P0), "runs": "\n".join(P1), "demo": "\n".join(P2)}; tmaps = {k: order_map(v) for k, v in raw.items()}
+    for page, ps, out in (("data", P0, "00_data.html"), ("runs", P1, "01_runs.html"), ("demo", P2, "02_demo.html")):
+        h_ = remap(raw[page], page, tmaps); open(os.path.join(os.path.dirname(OUT), out), "w").write(h_); print("wrote", out, "chars", len(h_))
 
 
 REPRO = """<details><summary>Reproducibility</summary>
@@ -478,7 +615,19 @@ NAME=lic5_nano_r15 TOKENS=1.2e9 EXTRA="--tok tok_lic5_r15_full" sbatch aidetect/
 python aidetect/09_report.py                      # this page
 python aidetect/predict.py --model .../lic3_nano_r10/model.pt --file doc.txt --html heat.html   # use the detector
 </pre>
-<p>Prompt for a coding agent: "In aidetect/ build an AI-text detector from voyage-4-nano on one H100 using only commercially licensed data: audit every dataset and model first (public domain, CC0, CC BY, CC BY-SA, MIT, Apache-2.0 only; drop non-commercial, research-only, undeclared and scraped third-party text, and generators with non-commercial weights), write the audit to license_audit.json, and keep only compliant rows (RAID books, wiki and abstracts without mpt-chat, MAGE SQuAD without OPT, LLaMA-1 and GLM-130B texts, Heterogeneous AI Spans without JMLR, TextSight 2026, WasItAIGenerated rows licensed CC BY 4.0 or MIT). Train a Qwen3-layer backbone with a token head and a document head (bidirectional attention, packed FlashAttention-3 training, bf16, torch.compile, lr 1.5e-4, 600M tokens, RAID sentence splices with span labels, plus 62k licensed Common Pile passages from 2017 or earlier and AI texts written from them by Apache-2.0 or MIT models with vLLM) from voyage-4-nano, Qwen3-Embedding-0.6B and Qwen3-0.6B-Base (12 layers each), evaluate document AUROC and TPR at 1% FPR and word-level AUROC and IoU, compare with desklib/ai-text-detector-v1.01, fakespot-ai/roberta-base-ai-text-detection-v1 and openai-community/roberta-large-openai-detector, benchmark CPU latency (fp32, bf16, int8) and report MFU. Regenerate reports/00_ai_text_detector.html with aidetect/09_report.py."</p></details></body></html>"""
+<p>Prompt for a coding agent: "In aidetect/ build an AI-text detector from voyage-4-nano on one H100 using only commercially licensed data: audit every dataset and model first (public domain, CC0, CC BY, CC BY-SA, MIT, Apache-2.0 only; drop non-commercial, research-only, undeclared and scraped third-party text, and generators with non-commercial weights), write the audit to license_audit.json, and keep only compliant rows (RAID books, wiki and abstracts without mpt-chat, MAGE SQuAD without OPT, LLaMA-1 and GLM-130B texts, Heterogeneous AI Spans without JMLR, TextSight 2026, WasItAIGenerated rows licensed CC BY 4.0 or MIT). Train a Qwen3-layer backbone with a token head and a document head (bidirectional attention, packed FlashAttention-3 training, bf16, torch.compile, lr 1.5e-4, 600M tokens, RAID sentence splices with span labels, plus 62k licensed Common Pile passages from 2017 or earlier and AI texts written from them by Apache-2.0 or MIT models with vLLM) from voyage-4-nano, Qwen3-Embedding-0.6B and Qwen3-0.6B-Base (12 layers each), evaluate document AUROC and TPR at 1% FPR and word-level AUROC and IoU, compare with desklib/ai-text-detector-v1.01, fakespot-ai/roberta-base-ai-text-detection-v1 and openai-community/roberta-large-openai-detector, benchmark CPU latency (fp32, bf16, int8) and report MFU. Regenerate the pages in reports/ with aidetect/09_report.py."</p></details></body></html>"""
+
+_head = REPRO.split("<pre>")[0]; _pre = REPRO.split("<pre>")[1].split("</pre>")[0].strip().split("\n"); _agent = REPRO.split("</pre>")[1].split("</details>")[0]
+_dat = re.compile(r"^(export|python aidetect/(00_download|12_|15_human|14_audit|01_prep|02_tokenize|16_human_news|16_build_humanizer|17_human|17_build)|MODELS=|VER=|GEN_AFTER)")
+_demo = re.compile(r"^python aidetect/(predict|09_report)")
+_box = lambda lines: "<pre>\n" + "\n".join(lines) + "\n</pre>"
+_repo = "Code is in this repository (<code>aidetect/</code>); data root <code>/data18/voyage_4_5_experiments/data/aidetect</code>; python env <code>~/voyage-4.5/.venv-aid</code>."
+_prompt = lambda t: f"<p>Prompt for a coding agent: \"{t}\"</p>"
+REPRO_DATA = ("<details><summary>Reproducibility</summary><p>" + _repo + "</p>" + _box([x for x in _pre if _dat.match(x)] + ["python aidetect/09_report.py                      # writes 00_data.html, 01_runs.html and 02_demo.html"]) +
+              _prompt("In aidetect/ build a commercially licensed training corpus for an AI-text detector: audit every dataset and model first (public domain, CC0, CC BY, CC BY-SA, MIT, Apache-2.0 only; drop non-commercial, research-only, undeclared and scraped third-party text and generators with non-commercial weights) and write license_audit.json; cut 500 to 2,200 character human passages from Common Pile subsets with a per-document open licence (2017 or earlier where dated: Stack Exchange, arXiv, PubMed, Gutenberg, pre-1929 books, UK Hansard, Foodista, Global Voices, US GPO, case law, regulations, peS2o); generate AI texts from them with vLLM and Apache-2.0 or MIT models (continue, rewrite, write, casual, humanizer-style rewrites, sentence edits, block edits at 10 to 100% coverage) with exact character spans; mix them with RAID splices, MAGE-SQuAD and Heterogeneous AI Spans at 1.0 to 2.0 AI texts per human text; hold out 8% of source documents by hash; tokenize with the voyage-4-nano tokenizer. Evaluation sets: RAID held-out groups, TextSight 2026, WasItAIGenerated 2026-09, Heterogeneous AI Spans test, generated held-out sets, and (evaluation only) OpAI-Bench, HumanizerBench and AI Humanizer Benchmark. Regenerate the pages with aidetect/09_report.py.") + "</details></body></html>")
+REPRO_RUNS = ("<details><summary>Reproducibility</summary><p>" + _repo + " It also needs the data pipeline of the data page.</p>" + _box([x for x in _pre if not _dat.match(x) and not _demo.match(x)] + ["python aidetect/09_report.py                      # writes 00_data.html, 01_runs.html and 02_demo.html"]) + _agent + "</details></body></html>")
+REPRO_DEMO = ("<details><summary>Reproducibility</summary><p>" + _repo + "</p>" + _box([x for x in _pre if _demo.match(x)]) +
+              _prompt("In aidetect/ write predict.py that loads a trained detector checkpoint (token head and document head on voyage-4-nano), scores a text file in 1,024-token windows, prints the document probability and writes an HTML card in which each word is shaded by the mean probability of its tokens; add an int8 CPU mode that skips the MLP down projections and heads. Regenerate the heatmap cards with aidetect/09_report.py.") + "</details></body></html>")
 
 if __name__ == "__main__":
     main()
