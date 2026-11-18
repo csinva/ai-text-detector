@@ -2,7 +2,7 @@
 // The text is re-read a moment after you pause (or after a few finished words, or at once on paste); words waiting for the model shimmer and a light sweeps across them as they are scored.
 const $ = (id) => document.getElementById(id);
 const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
-const ta = $("input"), mirror = $("mirror"), tip = $("tip"), MIN_WORDS = 1;
+const ta = $("input"), mirror = $("mirror"), tip = $("tip"), MIN_WORDS = 1, MAX_CHARS = 30000;
 const SAMPLES = {
   human: "Call me Ishmael. Some years ago, never mind how long precisely, having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world. It is a way I have of driving off the spleen and regulating the circulation. Whenever I find myself growing grim about the mouth, whenever it is a damp, drizzly November in my soul, then I account it high time to get to sea as soon as I can.",
   ai: "Artificial intelligence has become an increasingly important topic in modern society, influencing a wide range of industries and aspects of daily life. In today's rapidly evolving technological landscape, it is essential to understand both the opportunities and the challenges that AI presents. On the one hand, AI-powered tools can enhance productivity, streamline complex workflows, and unlock new insights from large datasets. On the other hand, they raise important questions about privacy, fairness, and accountability. Ultimately, a balanced approach that leverages the benefits of AI while addressing its risks will be crucial for building a more equitable and sustainable future.",
@@ -57,7 +57,7 @@ function render() {
     if (w.c) {
       const isNew = S.reveal && S.shown.get(w.s) !== w.c;
       html += `<span class="w${isNew ? " rv" : ""}" data-p="${w.p.toFixed(3)}" style="--c:${w.c}${isNew ? `;--d:${Math.round(nf++ * step)}ms` : ""}">${txt}</span>`; shown.set(w.s, w.c);
-    } else html += live ? `<span class="w pend" style="--i:${k % 24}">${txt}</span>` : `<span class="w">${txt}</span>`;
+    } else html += live && w.end <= MAX_CHARS ? `<span class="w pend" style="--i:${k % 24}">${txt}</span>` : `<span class="w">${txt}</span>`;
     pos = w.end;
   });
   html += esc(t.slice(pos)); if (t.endsWith("\n")) html += " ";
@@ -105,8 +105,8 @@ worker.onmessage = (e) => {
     S.doneId = m.id; apply(m); const flagged = m.words.filter((w) => w[2] > 0.5).length;
     setScore(m.docProb, m.words.length < 6 ? `${label(m.docProb)} · very short text, low confidence` : `${label(m.docProb)} · ${Math.round(100 * flagged / m.words.length)}% of words flagged`); setMap(m.words); render();
     setStatus("ready", `Read ${m.tokens} tokens in ${m.ms < 1000 ? Math.round(m.ms) + " ms" : (m.ms / 1000).toFixed(1) + " s"}${m.cachedWindows ? " (part reused)" : ""}`);
-    say(m.truncated ? "The text was cut to its first 30,000 characters." : m.tokens < 60 ? "Short text: keep writing for a steadier score." : "", m.truncated); window.__lastResult = m;
-    if (ta.value.slice(0, 30000).normalize("NFC") !== m.text) run();               // changed while reading
+    say(m.truncated ? `Only the first 30,000 characters (about ${m.words.length.toLocaleString()} words) were scored; the rest is not highlighted.` : m.tokens < 60 ? "Short text: keep writing for a steadier score." : "", m.truncated); window.__lastResult = m;
+    if (ta.value.slice(0, MAX_CHARS).normalize("NFC") !== m.text) run();               // changed while reading
   } else if (m.type === "skipped") { if (m.id === S.sentId) { S.doneId = m.id; run(); } }
   else if (m.type === "warn") say(m.message, true);
   else if (m.type === "cleared") { say("The downloaded model was removed from this browser. Reload the page to download it again."); S.ready = false; setStatus("loading", "Model removed"); }
