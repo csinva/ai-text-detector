@@ -4,7 +4,7 @@ import { BPETokenizer } from "./tokenizer.js";
 import { scoreIds, tokenToWord } from "./detector.js";
 
 const CACHE = "ai-text-detector-model";
-const MAX_CHARS = 30000;
+const MAX_CHARS = 300000;
 let session = null, tok = null, manifest = null, windowSize = 1024, loading = null, latest = 0;
 const winCache = new Map();   // window results by token content: typing at the end of a long text only recomputes the last window
 function key(ids) { let h = 2166136261 >>> 0; for (const v of ids) { h ^= v; h = Math.imul(h, 16777619) >>> 0; } return ids.length + ":" + h; }

@@ -54,4 +54,4 @@ Headless Chromium on a 176-core server (8 WASM threads): about 0.5 s for a 130-t
 
 ## Limits
 
-Texts over 30,000 characters are cut. The tokenizer does not treat special-token strings such as `<|endoftext|>` specially. The model's known weak spots (informal human text, paraphrasing tools) are in `reports/01_runs.html`; the score is not evidence about any person.
+Long texts are read window by window from top to bottom (about 25 s per 100,000 characters); texts over 300,000 characters are cut. The tokenizer does not treat special-token strings such as `<|endoftext|>` specially. The model's known weak spots (informal human text, paraphrasing tools) are in `reports/01_runs.html`; the score is not evidence about any person.

@@ -65,7 +65,7 @@
       <li><b>Live reading.</b> The page re-reads the text a moment after you pause or finish a few words, and right away when you paste. Words still waiting for the model shimmer; a light sweeps across them as they are scored.</li>
       <li><b>Score.</b> The large number is the model's estimate that the text is AI-written. For text that mixes both, it tracks the share of AI text rather than giving a yes or no.</li>
       <li><b>Not for decisions about people.</b> Short passages, informal writing and text rewritten by paraphrasing tools are the least reliable, and detectors err in both directions. Do not use a score as evidence that someone cheated.</li>
-      <li><b>Limits.</b> Texts over 30,000 characters are cut.</li>
+      <li><b>Long texts.</b> Long texts are read from top to bottom in windows of about 1,000 tokens, and the highlights fill in as each window finishes (about 25 seconds per 100,000 characters). Texts over 300,000 characters are cut.</li>
     </ul>
     <p class="small muted"><span id="runinfo"></span></p>
   </details>
