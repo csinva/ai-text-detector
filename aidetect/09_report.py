@@ -25,6 +25,7 @@ fin, ood, v2 = res[REF], res[OOD], res[V2]
 base = J(f"{R}/baselines_lic3.json"); cpu = J(f"{R}/{REF}/cpu_bench.json")
 bopai, bhum, cpub = J(f"{R}/baselines_opai.json"), J(f"{R}/baselines_humanizers.json"), J(f"{R}/cpu_bench_baselines.json")
 r15 = J(f"{R}/lic5_nano_r15/eval.json"); res[REF].update(J(f"{R}/{REF}/eval_opai.json")); hum_ref, hum_r15 = J(f"{R}/{REF}/humanizers.json"), J(f"{R}/lic5_nano_r15/humanizers.json")
+r5, hum_r5 = J(f"{R}/lic7_A/eval.json"), J(f"{R}/lic7_A/humanizers.json")   # round 5 (mixed data, layout augmentation, frontier text, heat-map loss): the headline model and the model of the web app
 q8 = {**J(f"{R}/{REF}/eval_int8_cpu_words.json"), **J(f"{R}/{REF}/eval_int8_cpu.json")}
 audit = J(f"{D}/licensed/license_audit.json")
 
@@ -184,7 +185,7 @@ def shifted(r): return float(np.nanmean([get(r, "textsight_2026", "auroc"), get(
 def metrics_of(key):
     """(mean AUROC over the 17 held-out sets, mean AUROC of the 2026 shifted sets, OpAI-Bench AUROC)"""
     if key == "ours": r = res[REF]
-    elif key == "ours15": r = r15
+    elif key == "ours15": r = r5
     else: r = base[key]
     op = get(r, "opai_doc", "auroc") if (key.startswith("ours") or key in ZS) else (bopai.get(key, {}).get("opai_doc", {}).get("doc", {}).get("auroc", float("nan")))
     return mean_auc(r), shifted(r), op
@@ -196,7 +197,7 @@ def fig_speed():
     for key, lab, c in (("desklib", "desklib", COL["desklib"]), ("fakespot", "Fakespot", COL["fakespot"]), ("openai-large", "OpenAI RoBERTa-large", COL["openai-large"]), ("binoculars", "Binoculars", COL["binoculars"]),
                         ("fast-detectgpt", "Fast-DetectGPT", COL["fast-detectgpt"]), ("detectgpt", "DetectGPT", COL["detectgpt"])):
         if key in BASES: pts.append((key, lab, spd(key, "fp32"), metrics_of(key), c, True))
-    m = metrics_of("ours15")      # the round-4 model; int8 is the deployed setting, fp32 (hollow) has the same accuracy
+    m = metrics_of("ours15")      # the round-5 model (key kept as ours15); int8 is the deployed setting, fp32 (hollow) has the same accuracy
     pts += [("ours15", "ours, int8", spd("nano", "int8"), m, COL["ours"], True)]
     W, H, Lm, Rm, Tm, Bm = 308, 250, 40, 8, 30, 44; x0, x1 = math.log10(0.05), math.log10(3000)
     X = lambda v: Lm + (math.log10(v) - x0) / (x1 - x0) * (W - Lm - Rm)
@@ -219,11 +220,11 @@ def fig_speed():
     css = ("<style>.fl{font:600 12px sans-serif;fill:var(--text-1)} .ft{font:11px sans-serif;fill:var(--text-2)} .fg{stroke:var(--border);stroke-width:1} .fw{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap} .sp{flex:1 1 640px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px} .sp svg{width:100%;height:auto} "
            ".lg{flex:0 0 178px;font-size:.78rem;line-height:1.2;padding-top:26px} .lg div{display:flex;gap:6px;align-items:center;margin-bottom:5px} .lg svg{flex:0 0 14px}</style>")
     mk = lambda c, fill: (f"<svg width=14 height=14 viewBox='0 0 14 14'><circle cx=7 cy=7 r=5 fill='{c}' /></svg>" if fill is True else f"<svg width=14 height=14 viewBox='0 0 14 14'><circle cx=7 cy=7 r=5 fill='white' stroke='{c}' stroke-width='1.6' /></svg>" if fill is False else f"<svg width=14 height=14 viewBox='0 0 14 14'><circle cx=7 cy=7 r=5 fill='{c}' fill-opacity='.35' stroke='{c}' stroke-width='1.6' /></svg>")
-    ent = [(COL["ours"], True, "Ours, int8", "round-4 model (1.5:1)"), (COL["desklib"], True, "desklib v1.01", "DeBERTa-v3-large, fp32"), (COL["fakespot"], True, "Fakespot", "RoBERTa-base, fp32"), (COL["openai-large"], True, "OpenAI RoBERTa-large", "fp32; an arrow marks a point below the axis"),
+    ent = [(COL["ours"], True, "Ours, int8", "round-5 model"), (COL["desklib"], True, "desklib v1.01", "DeBERTa-v3-large, fp32"), (COL["fakespot"], True, "Fakespot", "RoBERTa-base, fp32"), (COL["openai-large"], True, "OpenAI RoBERTa-large", "fp32; an arrow marks a point below the axis"),
            (COL["binoculars"], True, "Binoculars", "zero-shot, Falcon-7B pair, bf16"), (COL["fast-detectgpt"], True, "Fast-DetectGPT", "zero-shot, GPT-J-6B + GPT-Neo-2.7B, bf16"), (COL["detectgpt"], True, "DetectGPT", "zero-shot, GPT-Neo-2.7B + T5-large, 30 perturbations, bf16")]
     ent = [e for e in ent if e[2] in ("Ours, int8", "desklib v1.01", "Fakespot", "OpenAI RoBERTa-large") or {"Binoculars": "binoculars", "Fast-DetectGPT": "fast-detectgpt", "DetectGPT": "detectgpt"}.get(e[2], "") in BASES]
     legend = "<div class=lg>" + "".join(f"<div>{mk(c, f)}<span>{t}</span></div>" for c, f, t, d_ in ent) + "</div>"
-    return (f"{css}<figure id=fig-1 style='margin:12px 0;padding:0'><div class=fw><div class=sp>{out}</div>{legend}</div><figcaption style='font-size:.85rem;font-weight:400'><b>Figure 1.</b> Accuracy against CPU cost. Ours is the round-4 model (1.5 AI texts per human text). Backbones: desklib DeBERTa-v3-large, Fakespot RoBERTa-base, OpenAI RoBERTa-large (an arrow marks a point below the axis), Binoculars Falcon-7B and Falcon-7B-Instruct, Fast-DetectGPT GPT-J-6B and GPT-Neo-2.7B, DetectGPT GPT-Neo-2.7B with T5-large and 30 perturbations. Ours is plotted in int8 (the deployed setting; fp32 has the same accuracy and takes longer, <a href='#tab-1'>Table 1</a>); the supervised baselines in fp32, the zero-shot detectors (which run two 3 to 7B language models, or 30 T5 perturbations per text) in bf16 with AMX on the same CPU. "
+    return (f"{css}<figure id=fig-1 style='margin:12px 0;padding:0'><div class=fw><div class=sp>{out}</div>{legend}</div><figcaption style='font-size:.85rem;font-weight:400'><b>Figure 1.</b> Accuracy against CPU cost. Ours is the round-5 model (mixed human/AI documents, layout augmentation, frontier-model text, heat-map loss). Backbones: desklib DeBERTa-v3-large, Fakespot RoBERTa-base, OpenAI RoBERTa-large (an arrow marks a point below the axis), Binoculars Falcon-7B and Falcon-7B-Instruct, Fast-DetectGPT GPT-J-6B and GPT-Neo-2.7B, DetectGPT GPT-Neo-2.7B with T5-large and 30 perturbations. Ours is plotted in int8 (the deployed setting; fp32 has the same accuracy and takes longer, <a href='#tab-1'>Table 1</a>); the supervised baselines in fp32, the zero-shot detectors (which run two 3 to 7B language models, or 30 T5 perturbations per text) in bf16 with AMX on the same CPU. "
             "Accuracy for ours is the GPU evaluation (int8 accuracy was checked on a 400-document subsample of every set, see the CPU details under <a href='#sec-3'>Sec. 3</a>); baselines were run in fp16 on GPU with 512-token truncation. Left: the 17 held-out sets, which include three sets drawn from the training distribution of our model. Middle: the two 2026 sets that no model trained on. Right: OpAI-Bench test. "
             "Baselines return a document score only; ours also returns a word-level heatmap in the same pass.</figcaption></figure>")
 
@@ -231,17 +232,17 @@ def fig_speed():
 def tab_main():
     rows = ""
     ref = {"m": metrics_of("ours15")}
-    order = [("ours15", "Ours (round 4)")] + [(k, v) for k, v in BASES.items()]
+    order = [("ours15", "Ours (round 5)")] + [(k, v) for k, v in BASES.items()]
     for key, lab in order:
         mm = metrics_of(key); mref = ref["m"]
         sp = (spd("nano", "int8"), spd("nano", "fp32")) if key.startswith("ours") else (spd(key, "int8"), spd(key, "fp32")) if key not in ZS else (spd(key, "bf16"), None)
-        hr = hum_r15 if key == "ours15" else None
+        hr = hum_r5 if key == "ours15" else None
         h1 = 100 * hr["all"]["outputs"]["recall@1"] if hr else (100 * bhum[key]["outputs"]["recall@1"] if key in bhum else float("nan"))
-        h1 = "n/a" if np.isnan(h1) else (f"{h1:.1f}" if key == "ours15" else d(h1, 100 * hum_r15["all"]["outputs"]["recall@1"]))
+        h1 = "n/a" if np.isnan(h1) else (f"{h1:.1f}" if key == "ours15" else d(h1, 100 * hum_r5["all"]["outputs"]["recall@1"]))
         cell = lambda v, r_: ("n/a" if np.isnan(v) else (f"{v:.1f}" if key == "ours15" else d(v, r_)))
         wd = ""
         if key.startswith("ours"):
-            rr = r15
+            rr = r5
             wd = f"{get(rr, 'spans_test', 'word_auroc', 'word'):.1f} / {get(rr, 'opai_spans', 'word_auroc', 'word'):.1f}" if rr else ""
         else: wd = "no word output"
         rows += (f"<tr><td>{lab}</td><td>{PARAMS['nano'] if key.startswith('ours') else PARAMS[key]}</td><td>{f"{sp[0]:.2f} / {sp[1]:.2f}" if sp[1] is not None else (f"{sp[0]:.0f} (bf16)" if not np.isnan(sp[0]) else "n/a")}</td><td>{cell(mm[0], mref[0])}</td><td>{cell(mm[1], mref[1])}</td><td>{cell(mm[2], mref[2])}</td><td>{h1}</td><td>{wd}</td></tr>")
@@ -249,6 +250,44 @@ def tab_main():
          "<th>Humanizer recall at 1% FPR (%)</th><th>Word AUROC, Spans / OpAI</th></tr>")
     return (f"<div class=wide><table id=tab-1><caption style='text-align:left'><b>Table 1.</b> Our detector against the comparison detectors. Differences are to our model. CPU time is one 512-token document on 8 cores of an Intel Xeon Platinum 8468V (dynamic int8 quantization of the linear layers for the baselines, accuracy not re-evaluated; ours quantizes all but the MLP down projections and heads, accuracy checked). "
             f"Humanizer recall uses a threshold at 1% FPR on 2,216 pooled human texts ([sets](#tab-d)). The 17 sets are listed in the data report; three of them come from our training distribution. Binoculars and Fast-DetectGPT were scored on at most 1,500 documents per set (stratified by class), DetectGPT on at most 300 documents per set, 30 perturbations and the first 200 words, and on a subsample for the humanizer column; the 0.5-threshold metrics do not apply to their scores, so only AUROC and recall at a fixed false positive rate are shown. Zero-shot CPU time is bf16 on the same cores.</caption>{h}{rows}</table></div>").replace("([sets](#tab-d))", "(3,610 outputs of 19 commercial tools)")
+
+
+R5_RUNS = {"r4": "lic5_nano_r15", "C": "lic6_C", "D": "lic6_D", "B": "lic7_B", "A": "lic7_A"}
+R5_NAMES = {"r4": "round 4", "C": "C: heat-map loss only", "D": "D: mixed and layout data + loss", "B": "B: + frontier text, no loss", "A": "A: all (round 5)"}
+
+
+def collect_r5():
+    """metrics of the round-5 runs (A to D) and of the round-4 model, from the evaluation files and failure_analysis_r5.json"""
+    fa, out = J(f"{R}/failure_analysis_r5.json"), {}
+    for k, run in R5_RUNS.items():
+        e = {**J(f"{R}/{run}/eval.json"), **(J(f"{R}/{run}/eval_r5sets.json") if k == "r4" else {})}; fr = J(f"{R}/{run}/eval_frontier.json"); hm = J(f"{R}/{run}/humanizers.json"); f = fa.get({"r4": "round4"}.get(k, k), {})
+        if not e or not f: return {}
+        w = lambda st, m_: get(e, st, m_, "word"); ts = f["textsight"]["by_model"].get("claude-opus-5", {})
+        out[k] = dict(mix_ai_heavy=w("mix_ai_heavy", "human_word_fp05"), mix_hh_recall=w("mix_human_heavy", "ai_word_recall05"), mix_hh_iou=w("mix_human_heavy", "mean_doc_iou"), mix_word_auc=w("mix_word", "word_auroc"),
+                      opai_w_auc=w("opai_spans", "word_auroc"), opai_w_fp=w("opai_spans", "human_word_fp05"), spans_auc=w("spans_test", "word_auroc"), mean17=float(np.nanmean([get(e, s_, "auroc") for s_ in DOC])),
+                      ts=get(e, "textsight_2026", "auroc"), wasit=get(e, "wasit_2026", "auroc"), opai_doc=get(e, "opai_doc", "auroc"), fmt=get(e, "fmt_pure", "auroc"), hum=100 * hm["all"]["outputs"]["recall@1"] if hm else float("nan"),
+                      fr_iou=get(fr, "frontier_mix", "mean_doc_iou", "word"), arx_raw=100 * f["arxiv"]["raw_gt05"], arx_flat=100 * f["arxiv"]["flat_gt05"], opus05=100 * ts.get("recall05", float("nan")), opus1=100 * ts.get("recall1", float("nan")))
+    return out
+
+
+R5 = collect_r5()
+
+
+def tab_r5():
+    if not R5: return ""
+    rows = [("Held-out mixed documents (built like the training mixtures)", None, None), ("AI-heavy text: human words flagged as AI (%), lower is better", "mix_ai_heavy", 1), ("Human-heavy text: AI words caught (%)", "mix_hh_recall", 1), ("Human-heavy text: overlap (IoU) of flagged and true AI words", "mix_hh_iou", 1),
+            ("Phrase-level splices: word AUROC", "mix_word_auc", 1), ("Held-out frontier-model mixtures: IoU", "fr_iou", 1),
+            ("Real mixed text", None, None), ("OpAI-Bench (2026 LLM edits): word AUROC", "opai_w_auc", 1), ("OpAI-Bench: human words flagged as AI (%), lower is better", "opai_w_fp", 1), ("Claude-written spans: word AUROC", "spans_auc", 1),
+            ("Document level", None, None), ("Mean AUROC, 17 held-out sets", "mean17", 1), ("TextSight 2026 AUROC", "ts", 1), ("WasItAIGenerated AUROC", "wasit", 1), ("OpAI-Bench document AUROC", "opai_doc", 1), ("Re-wrapped or flattened text (layout changed) AUROC", "fmt", 1), ("Commercial humanizers: recall at 1% FPR (%)", "hum", 1),
+            ("Failure cases", None, None), ("20 classic arXiv papers (before 2017) as extracted from the PDF: flagged as AI (%), lower is better", "arx_raw", 1), ("the same passages with line breaks removed: flagged as AI (%), lower is better", "arx_flat", 1),
+            ("TextSight, Claude Opus 5 passages: recall at 0.5 (%)", "opus05", 1), ("TextSight, Claude Opus 5 passages: recall at 1% FPR (%)", "opus1", 1)]
+    body = ""
+    for lab, key, _ in rows:
+        if key is None: body += f"<tr><td colspan=6><b>{lab}</b></td></tr>"; continue
+        ref = R5["r4"][key]; body += f"<tr><td>{lab}</td><td>{ref:.1f}</td>" + "".join(f"<td>{d(R5[k][key], ref)}</td>" for k in ("C", "D", "B", "A")) + "</tr>"
+    return (f"<div class=wide><table id=tab-24><caption style='text-align:left'><b>Table 24.</b> Round 5 against the round-4 model. All runs start from voyage-4-nano with the same recipe (1.6B tokens, 1.2B for C). C: heat-map loss on the round-4 data. D: C plus 250k explicit mixed documents and 60k layout-augmented documents. "
+            f"B: D's data plus frontier-model text (Claude, DeepSeek-R1-0528-Qwen3-8B, gpt-oss-120b) and no heat-map loss. A: everything (the model of the web app). Differences are to round 4. The mixed-document rows use test documents built by the same recipe as the training mixtures, so they show what the loss and data can teach, not how well it transfers.</caption>"
+            f"<tr><th>Measure</th>" + "".join(f"<th>{R5_NAMES[k]}</th>" for k in ("r4", "C", "D", "B", "A")) + f"</tr>{body}</table></div>")
 
 
 def tab_agg():
@@ -539,7 +578,7 @@ def gen_table():
 
 def mix_table():
     rows = ""
-    for name, lab in (("tok_lic3_r10_full", "round 2 final (1.0:1)"), ("tok_lic4_r10_full", "round 3 (1.0:1)"), ("tok_lic5_r10_full", "round 4, 1.0:1"), ("tok_lic5_r15_full", "round 4, 1.5:1"), ("tok_lic5_r20_full", "round 4, 2.0:1")):
+    for name, lab in (("tok_lic3_r10_full", "round 2 final (1.0:1)"), ("tok_lic4_r10_full", "round 3 (1.0:1)"), ("tok_lic5_r10_full", "round 4, 1.0:1"), ("tok_lic5_r15_full", "round 4, 1.5:1"), ("tok_lic5_r20_full", "round 4, 2.0:1"), ("tok_lic6_r15_full", "round 5, no frontier text (D)"), ("tok_lic7_r15_full", "round 5, all (A and B)")):
         if not os.path.exists(f"{D}/{name}/train_off.npy"): continue
         off = np.load(f"{D}/{name}/train_off.npy"); lab_ = np.load(f"{D}/{name}/train_lab.npy", mmap_mode="r"); lens = np.diff(off)
         sel = np.random.RandomState(0).choice(len(lens), 4000, replace=False)
@@ -620,6 +659,13 @@ def main():
     A0("<p>Every passage is assigned by hash to one generator and one task. <b>New text</b>: continue the passage from a human prefix (exact span labels), rewrite it, write a new text for the same register, or write it casually. <b>Humanizer-style</b>: a second model rewrites an AI text to sound human (pure AI, or human prefix plus humanized continuation). <b>Sentence edits</b>: about 30% of the sentences of a human passage are rewritten by a model. <b>Block edits</b> (round 4): 1 to 4 sentence blocks are polished, paraphrased, restyled, compressed or expanded at 10 to 100% coverage. "
        "Typography is not a label: curly quotes and dashes are straightened in 55% of AI texts, cut-off generations are trimmed, and texts that match any evaluation text in their first 400 characters are removed. Generators: Qwen3-8B, Qwen3-4B-Instruct-2507, Mistral-7B-Instruct-v0.3, Phi-4-mini-instruct, OLMo-2-1124-7B-Instruct, SmolLM3-3B, GPT-OSS-20B, Qwen3-30B-A3B-Instruct-2507.</p>")
     A0(gtab)
+    fr = pd.concat([pd.read_parquet(f_, columns=["gen_model", "split", "quirks"]) for f_ in sorted(glob.glob(f"{D}/licensed/gen/r5_*.parquet"))]) if glob.glob(f"{D}/licensed/gen/r5_*.parquet") else None
+    if fr is not None:
+        qs = json.load(open(os.path.join(HERE, "21_frontier_quirks.json")))
+        A0("<p><b>Round 5, frontier-model text.</b> " + f"{len(fr):,} texts from Claude Opus, Sonnet, Haiku and Fable (written by Claude Code subagents: {int(fr.gen_model.str.startswith('claude').sum())}), DeepSeek-R1-0528-Qwen3-8B ({int((fr.gen_model == 'deepseek_r1_0528_qwen3_8b').sum()):,}; R1-0528 distilled into Qwen3-8B, MIT) and gpt-oss-120b ({int((fr.gen_model == 'gptoss120b').sum()):,}; Apache-2.0). "
+           f"Each prompt is built from a human passage (continue, rewrite, write or casual, as in round 1) and {100 * (fr.quirks != '[]').mean():.0f}% add 1 to 3 'quirk instructions' that make the model exaggerate a tell of recent models. "
+           "Held-out prompts use passages of the 8% evaluation split. The training mixtures also hold 250k mixed human/AI documents: units of a human passage and of an AI text are alternated (words, sentences, blocks of 2 to 4 sentences, paragraphs) with an AI share of 3% to 97%, from the same passage, from another passage of the same source and generator (cross-topic), or from two generators, and 18% of them are re-wrapped to a random line width (see the runs report).</p>")
+        A0("<details><summary>Tells and quirks brainstormed with Fable (unverified; used to write the quirk instructions)</summary><p class=small>" + html.escape(qs["source"]) + "</p><ul>" + "".join(f"<li><b>{html.escape(k)}</b>: " + html.escape("; ".join(v)) + "</li>" for k, v in qs["tells"].items()) + "</ul><p><b>Persist in newer models:</b> " + html.escape("; ".join(qs["persistent"])) + ".</p><p><b>Largely dropped:</b> " + html.escape("; ".join(qs["dropped"])) + ".</p><p><b>Human text that looks AI-like:</b> " + html.escape("; ".join(qs["human_lookalikes"])) + ".</p><p><b>Mixed text:</b> " + html.escape("; ".join(qs["mixed_text"])) + ".</p><p><b>The 14 quirk instructions:</b></p><ol>" + "".join(f"<li>{html.escape(q)}</li>" for q in qs["quirk_instructions"]) + "</ol></details>")
     A0("<h2 id=sec-d4>4. Training mixtures</h2>")
     A0(corpus_table()); A0(mix_table())
     A0("<p>Evaluation-only sets: OpAI-Bench (Apache-2.0 declared, human seed provenance not stated) and the two humanizer benchmarks (CC BY 4.0, outputs of commercial tools) are never trained on; their results are in the runs report.</p>")
@@ -665,21 +711,21 @@ def main():
     cur[0] = P1
     strip = lambda xs: re.sub(r"<h[23] id=[^>]+>.*?</h[23]>", "", "\n".join(xs))
     det = lambda title, body, op=False: f"<details{' open' if op else ''}><summary>{title}</summary>{body}</details>"
-    mo = metrics_of("ours15"); bb_ = {k: metrics_of(k) for k in BASES}      # headline model: round 4 (1.5 AI texts per human text)
-    bestb = max(bb_, key=lambda k: bb_[k][0]); sp8 = spd("nano", "int8"); r4w = lambda st, m_="word_auroc": get(r15, st, m_, "word"); hr4 = hum_r15["all"]["outputs"]
+    mo = metrics_of("ours15"); bb_ = {k: metrics_of(k) for k in BASES}      # headline model: round 5 (run lic7_A)
+    bestb = max(bb_, key=lambda k: bb_[k][0]); sp8 = spd("nano", "int8"); r4w = lambda st, m_="word_auroc": get(r5, st, m_, "word"); hr4 = hum_r5["all"]["outputs"]
     P1[:] = P1[:2]
-    A(f"<p class=box><b>Summary.</b> A voyage-4-nano detector with a document head and a per-token head (word-level heatmap), trained on commercially licensed data only (round-4 model; earlier rounds are in <a href='#sec-4'>Sec. 4</a>). "
-      f"It reaches mean AUROC {mo[0]:.1f} on {len(DOC)} held-out sets (best baseline {BASES[bestb]}: {bb_[bestb][0]:.1f}), but three of those sets come from its training distribution. On the two 2026 sets that no model trained on, it is level with the best baseline: "
+    A(f"<p class=box><b>Summary.</b> A voyage-4-nano detector with a document head and a per-token head (word-level heatmap), trained on commercially licensed data only (round-5 model; earlier rounds are in <a href='#sec-4'>Sec. 4</a>). "
+      f"It reaches mean AUROC {mo[0]:.1f} on {len(DOC)} held-out sets (best baseline {BASES[bestb]}: {bb_[bestb][0]:.1f}), but three of those sets come from its training distribution. On the two 2026 sets that no model trained on, it is level with or slightly ahead of the best baseline: "
       f"{mo[1]:.1f} mean AUROC against {max(v[1] for v in bb_.values()):.1f}; on OpAI-Bench {mo[2]:.1f} against {np.nanmax([v[2] for v in bb_.values()]):.1f}. It catches {100 * hr4['recall@1']:.0f}% of commercial-humanizer outputs at 1% FPR (desklib {100 * bhum['desklib']['outputs']['recall@1'] if bhum else float('nan'):.0f}%, Fakespot {100 * bhum['fakespot']['outputs']['recall@1'] if bhum else float('nan'):.0f}%). "
       f"What it adds is a word-level heatmap from the same pass at the cost of a base-size model: {sp8:.2f} s per 512-token document in int8 on 8 CPU cores, {spd(bestb, 'int8') / sp8:.0f}x faster than {BASES[bestb]} in int8 and about as fast as Fakespot RoBERTa-base ({spd('fakespot', 'int8'):.2f} s, document score only). "
-      f"Weak spots: WasItAIGenerated ({get(r15, 'wasit_2026', 'auroc'):.1f}), OpAI-Bench, commercial-humanizer text and informal or edited human text. Generated {stamp} UTC.</p>")
+      f"Weak spots: WasItAIGenerated ({get(r5, 'wasit_2026', 'auroc'):.1f}), OpAI-Bench, commercial-humanizer text and informal or edited human text. Generated {stamp} UTC.</p>")
     A(fig_speed()); A(tab_main())
     A("<h2 id=sec-1>1. Main results</h2><ul>"
-      f"<li><b>Accuracy.</b> On the held-out sets that include our training distribution the detector reaches {mo[0]:.1f} mean AUROC; the open supervised detectors reach {', '.join(f'{BASES[k]} {bb_[k][0]:.1f}' for k in SUP)} and the zero-shot ones {', '.join(f'{BASES[k]} {bb_[k][0]:.1f}' for k in ZS if k in bb_)}. On the two 2026 sets that no model trained on, it is level with the baselines: {get(r15, 'textsight_2026', 'auroc'):.1f} (TextSight) and {get(r15, 'wasit_2026', 'auroc'):.1f} (WasIt), against {', '.join(f'{BASES[k]} {get(base[k], 'textsight_2026', 'auroc'):.1f} and {get(base[k], 'wasit_2026', 'auroc'):.1f}' for k in bb_)}.</li>"
+      f"<li><b>Accuracy.</b> On the held-out sets that include our training distribution the detector reaches {mo[0]:.1f} mean AUROC; the open supervised detectors reach {', '.join(f'{BASES[k]} {bb_[k][0]:.1f}' for k in SUP)} and the zero-shot ones {', '.join(f'{BASES[k]} {bb_[k][0]:.1f}' for k in ZS if k in bb_)}. On the two 2026 sets that no model trained on, it is level with the baselines: {get(r5, 'textsight_2026', 'auroc'):.1f} (TextSight) and {get(r5, 'wasit_2026', 'auroc'):.1f} (WasIt), against {', '.join(f'{BASES[k]} {get(base[k], 'textsight_2026', 'auroc'):.1f} and {get(base[k], 'wasit_2026', 'auroc'):.1f}' for k in bb_)}.</li>"
       f"<li><b>Speed.</b> {sp8:.2f} s per 512-token document in int8 and {spd('nano', 'fp32'):.2f} s in fp32 on 8 cores; one core takes {spd('nano', 'int8', 1):.2f} s in int8. Fakespot RoBERTa-base (125M parameters, document score only) is as fast: {spd('fakespot', 'int8'):.2f} s in int8, {spd('fakespot', 'fp32'):.2f} s in fp32; desklib takes {spd('desklib', 'int8'):.2f} s in int8.</li>"
       f"<li><b>Word-level.</b> Word AUROC is {r4w('spans_test'):.1f} on Claude-written spans, {r4w('raid_splice'):.1f} on RAID splices and {r4w('gen_edit'):.1f} on sentence edits, but only {r4w('opai_spans'):.1f} on OpAI-Bench mixed texts (2026 generators, low-coverage edits). Heatmaps are in the demo report.</li>"
       f"<li><b>Limits.</b> Humanizer outputs are caught at {100 * hr4['recall@1']:.0f}% (1% FPR) and {100 * hr4['recall@5']:.0f}% (5% FPR); {100 * bhum['desklib']['outputs']['recall@1'] if bhum else float('nan'):.0f}% for desklib at 1% FPR. WasIt and OpAI-Bench show that informal and edited human text is the main source of false positives.</li>"
-      f"<li><b>What changed in round 4.</b> More licensed human text (252k passages), block-level edits and 1.5 AI texts per human text improved WasIt by {get(r15, 'wasit_2026', 'auroc') - get(res[REF], 'wasit_2026', 'auroc'):+.1f} and OpAI-Bench by {get(r15, 'opai_doc', 'auroc') - get(res[REF], 'opai_doc', 'auroc'):+.1f} over the round-2 model, and lowered humanizer recall at 1% FPR by {100 * (hum_ref['all']['outputs']['recall@1'] - hr4['recall@1']):.0f} points. Longer training on the same data hurt.</li></ul>")
+      f"<li><b>What changed in round 5.</b> Explicit mixed human/AI documents, layout augmentation, text from Claude, DeepSeek-style and gpt-oss-120b generators and a heat-map loss. On held-out mixed documents the share of human words flagged as AI inside AI-heavy text falls from {R5['r4']['mix_ai_heavy']:.0f}% to {R5['A']['mix_ai_heavy']:.0f}%; on real LLM-edited text (OpAI-Bench) the word AUROC moves from {get(r15, 'opai_spans', 'word_auroc', 'word'):.1f} to {get(r5, 'opai_spans', 'word_auroc', 'word'):.1f}, much less than on the synthetic mixtures. The old-arXiv-PDF false positives after unwrapping lines fall from {R5['r4']['arx_flat']:.0f}% to {R5['A']['arx_flat']:.0f}%; recall of Opus 5 text on TextSight is unchanged (<a href='#sec-4'>Sec. 4</a>).</li></ul>")
     A("<h2 id=sec-2>2. Model and training</h2>")
     A("<p>voyage-4-nano (Apache-2.0; 12 Qwen3 layers, hidden size 1,024) with a linear token head and a linear document head on the mean hidden state, bidirectional attention, trained for 1.2B tokens (round 4; the round-2 model used 600M) on one H100 at about 40% MFU. Every training document carries AI character spans, so the same model gives a document score and a word heatmap. Data: licensed Common Pile human text plus AI text from eight Apache-2.0 or MIT models (see the data report). The licence audit, mixtures and evaluation sets are in the <a href='00_data.html'>data report</a>.</p>")
     A(det("Design, labels and training recipe", strip(B["design"]) + strip(B["train"])))
@@ -692,6 +738,15 @@ def main():
     A(det(f"4.2 Round 2: more data, 1:1 against 1.3:1, 1B tokens, aggregation. Sentence-edit AUROC {get(v2, 'gen_edit', 'auroc'):.1f} to {get(res[REF], 'gen_edit', 'auroc'):.1f}; WasIt and TextSight within 2 points", strip(B["r2"])))
     A(det(f"4.3 Round 3: humanizer benchmarks, Global Voices and US GPO text, retrain (not adopted: WasIt {get(J(R + '/lic4_nano_r10/eval.json'), 'wasit_2026', 'auroc'):.1f} against {get(res[REF], 'wasit_2026', 'auroc'):.1f})", strip(B["r3"])))
     A(det(f"4.4 Round 4: OpAI-Bench, 252k human passages, block edits, AI:human 1.0 / 1.5 / 2.0. At 1.5:1: WasIt {get(r15, 'wasit_2026', 'auroc') - get(res[REF], 'wasit_2026', 'auroc'):+.1f}, OpAI-Bench {get(r15, 'opai_doc', 'auroc') - get(res[REF], 'opai_doc', 'auroc'):+.1f}, humanizer recall {100 * (hum_r15['all']['outputs']['recall@1'] - hum_ref['all']['outputs']['recall@1']):+.0f} points", strip(B["r4"])))
+    if R5:
+        A(det(f"4.5 Round 5: mixed documents, layout augmentation, frontier-model text, heat-map loss. Human words flagged inside AI-heavy text {R5['r4']['mix_ai_heavy']:.0f}% to {R5['A']['mix_ai_heavy']:.0f}% on synthetic mixtures, but only {R5['r4']['opai_w_auc']:.1f} to {R5['A']['opai_w_auc']:.1f} word AUROC on real LLM edits",
+              "<p>Three problems motivated this round: in text that is mostly AI the token probabilities saturate (human words inside it also go to 99%); old scientific papers pasted without their line breaks are flagged as AI; and plain encyclopedic text from Claude Opus 5 is missed.</p><ul>"
+              "<li><b>Mixed documents.</b> 250k documents that alternate human and AI units (words, sentences, blocks, paragraphs) with the AI share between 3% and 97%, from the same passage or from other passages and generators (cross-topic).</li>"
+              "<li><b>Heat-map loss.</b> Inside mixed documents each class carries half of the token weight (weights between 1 and 8), tokens within 6 tokens of a human/AI switch count three times, and a margin loss penalizes a gap between the mean P(AI) on AI tokens and on human tokens below 0.85.</li>"
+              "<li><b>Layout.</b> 60k scientific and legal documents of both classes re-wrapped to random line widths or flattened, so line breaks stop being a cue.</li>"
+              "<li><b>Frontier-model text.</b> Fable listed the tells of recent models (<a href='00_data.html'>data report</a>); prompts with 1 to 3 of its 14 quirk instructions on about half of them were run on Claude Opus, Sonnet, Haiku and Fable (192 texts), DeepSeek-R1-0528-Qwen3-8B (4,976) and gpt-oss-120b (3,323), and mixed in with eight times the sampling weight.</li></ul>"
+              "<p><b>Findings.</b> (1) On synthetic mixtures the saturation is gone, with or without the loss, because the data teaches it. (2) On real LLM-edited text (OpAI-Bench) the data alone does not help and the loss does: run C, the loss on the old data, has the best word AUROC, so the loss is the part that transfers. (3) Layout augmentation roughly halves the false positives on old arXiv text without line breaks, but does not remove them. "
+              "(4) Opus 5 recall on TextSight (12 passages, so one passage is 8.3 points) does not move in runs A and B: the Claude texts I generated are detected by every model including round 4, so they do not resemble the hard cases, which are neutral encyclopedic prose without markdown or other tells. A fix needs generations in that register from strong models. (5) Document-level AUROC and the humanizer benchmark are unchanged within noise except TextSight and WasIt, which rise by 1.6 points each in run A.</p>" + tab_r5()))
     A(det("Caveats", strip(B["cav"])))
     A("\n".join(B["cost"]))
     A(REPRO_RUNS)
@@ -701,11 +756,11 @@ def main():
     A0(REPRO_DATA)
     A2(head("AI detector demo"))
     A2("<h1>02. AI-generated text detector: heatmaps and usage</h1>")
-    A2(f"<p class=box><b>Summary.</b> Eleven word-level heatmap cards from the reference model (<code>runs/{REF}/model.pt</code>): mixed texts with exact AI spans (Claude-written spans, RAID sentence splices, open-model continuations and edits) and pure AI or human texts from TextSight 2026. Word-level AUROC on Claude-written spans is {get(fin, 'spans_test', 'word_auroc', 'word'):.1f} and document IoU {get(fin, 'spans_test', 'mean_doc_iou', 'word'):.1f}; on OpAI-Bench mixed texts the word AUROC is {get(res[REF], 'opai_spans', 'word_auroc', 'word'):.1f}. "
+    A2(f"<p class=box><b>Summary.</b> Eleven word-level heatmap cards from the round-5 model (<code>runs/lic7_A/model.pt</code>, the model of the web app): mixed texts with exact AI spans (Claude-written spans, RAID sentence splices, open-model continuations and edits) and pure AI or human texts from TextSight 2026. Word-level AUROC on Claude-written spans is {get(r5, 'spans_test', 'word_auroc', 'word'):.1f} and document IoU {get(r5, 'spans_test', 'mean_doc_iou', 'word'):.1f}; on OpAI-Bench mixed texts the word AUROC is {get(r5, 'opai_spans', 'word_auroc', 'word'):.1f}. "
        + (f"A 512-token document takes {cpu8[0]['sec_per_doc']:.2f} s on 8 CPU cores and {cpu1[0]['sec_per_doc']:.2f} s on one core (int8). " if cpu8 and cpu1 else "") + f"Usage: <code>aidetect/predict.py</code> prints the document score and writes an HTML heatmap. Generated {stamp} UTC.</p>")
     A2("<h2 id=sec-m1>1. Word heatmaps</h2>")
     A2("<h3 id=fig-1>Figure 1. Word heatmaps on mixed and pure texts</h3><p>Each word is shaded by the mean P(AI) of its tokens (the token head). Dotted underline marks words inside a true AI span. The first four cards are real Claude-written spans inside human-origin text (Heterogeneous AI Spans test set), the next three are RAID splices that alternate sentences of a human text and an AI text written for the same prompt (held-out source documents), then two human Stack Exchange and PubMed passages continued by the open generators (gen_mixed), then one fully AI and one fully human passage from TextSight 2026. For a mixed text the document score estimates the share of AI text. The cards are fixed random draws, not selected for success: document scores track the true AI share on most cards and overshoot on some (a Cohere books splice with 72% AI scores 98%, a PubMed continuation with 44% AI scores 66%).</p>")
-    A2(figs(f"{R}/{REF}/model.pt"))
+    A2(figs(f"{R}/lic7_A/model.pt"))
     A2("<h2 id=sec-m2>2. How the scores are computed</h2><ul><li><b>Word score.</b> The mean probability of the tokens ending inside the word, from the token head. The shading in the cards is this probability.</li>"
        "<li><b>Document score.</b> The length-weighted mean of the document logits of 1,024-token windows (the last window is anchored to the end), passed through a sigmoid. For a mixed text it estimates the share of AI text, not a yes or no; the evaluation tables in the runs report threshold it at 1% false positive rate on human text.</li>"
        "<li><b>Speed.</b> int8 dynamic quantization of the attention and MLP up projections (MLP down projections and heads stay fp32) matches fp32 accuracy on CPU; see the CPU table in the runs report.</li></ul>")
@@ -754,13 +809,19 @@ GEN_AFTER=110121 MODELS=... sbatch aidetect/gen.slurm; GEN_AFTER=110121 MODES=st
 python aidetect/17_build_opai_eval.py                            # OpAI-Bench eval sets (evaluation only)
 VER=5 python aidetect/01_prep.py --full --ratio=1.5; VER=5 python aidetect/02_tokenize.py --full --ratio=1.5
 NAME=lic5_nano_r15 TOKENS=1.2e9 EXTRA="--tok tok_lic5_r15_full" sbatch aidetect/train_eval.slurm   # round-4 candidate (also r10: 1.0e9, r20: 1.5e9)
+python aidetect/21_make_frontier_prompts.py; MODEL=deepseek-ai/DeepSeek-R1-0528-Qwen3-8B TAG=deepseek_r1_0528_qwen3_8b GROUP=deepseek sbatch aidetect/frontier.slurm   # round 5: also openai/gpt-oss-120b (gptoss120b)
+# the four Claude models write frontier/claude_<model>_out_*.jsonl from frontier/claude_<model>_prompts.jsonl (Claude Code subagents), then:
+python aidetect/21_ingest_claude.py; python aidetect/21_fix_deepseek.py
+VER=7 python aidetect/20_build_mixed.py --n 250000 --n_fmt 30000 --n_eval 900 --frontier --out_name prep_lic7_r15_full; VER=7 python aidetect/02_tokenize.py --full --ratio=1.5
+NAME=lic7_A TOKENS=1.6e9 EXTRA="--tok tok_lic7_r15_full --minority 1 --min_cap 8 --w_bnd 2 --bnd_k 6 --w_sep 1 --sep_margin 0.85 --w_mix 1 --w_fr 8" PREP=prep_lic7_r15_full sbatch aidetect/train_eval.slurm   # round 5 (B: no loss flags; D, C: see Table 24)
+python aidetect/19_failure_analysis.py --out runs/failure_analysis_r5.json --prep prep_lic7_r15_full --models round4=lic5_nano_r15,C=lic6_C,D=lic6_D,B=lic7_B,A=lic7_A
 python aidetect/09_report.py                      # this page
 python aidetect/predict.py --model .../lic3_nano_r10/model.pt --file doc.txt --html heat.html   # use the detector
 </pre>
 <p>Prompt for a coding agent: "In aidetect/ build an AI-text detector from voyage-4-nano on one H100 using only commercially licensed data: audit every dataset and model first (public domain, CC0, CC BY, CC BY-SA, MIT, Apache-2.0 only; drop non-commercial, research-only, undeclared and scraped third-party text, and generators with non-commercial weights), write the audit to license_audit.json, and keep only compliant rows (RAID books, wiki and abstracts without mpt-chat, MAGE SQuAD without OPT, LLaMA-1 and GLM-130B texts, Heterogeneous AI Spans without JMLR, TextSight 2026, WasItAIGenerated rows licensed CC BY 4.0 or MIT). Train a Qwen3-layer backbone with a token head and a document head (bidirectional attention, packed FlashAttention-3 training, bf16, torch.compile, lr 1.5e-4, 600M tokens, RAID sentence splices with span labels, plus 62k licensed Common Pile passages from 2017 or earlier and AI texts written from them by Apache-2.0 or MIT models with vLLM) from voyage-4-nano, Qwen3-Embedding-0.6B and Qwen3-0.6B-Base (12 layers each), evaluate document AUROC and TPR at 1% FPR and word-level AUROC and IoU, compare with desklib/ai-text-detector-v1.01, fakespot-ai/roberta-base-ai-text-detection-v1 and openai-community/roberta-large-openai-detector, benchmark CPU latency (fp32, bf16, int8) and report MFU. Regenerate the pages in reports/ with aidetect/09_report.py."</p></details></body></html>"""
 
 _head = REPRO.split("<pre>")[0]; _pre = REPRO.split("<pre>")[1].split("</pre>")[0].strip().split("\n"); _agent = REPRO.split("</pre>")[1].split("</details>")[0]
-_dat = re.compile(r"^(export|python aidetect/(00_download|12_|15_human|14_audit|01_prep|02_tokenize|16_human_news|16_build_humanizer|17_human|17_build)|MODELS=|VER=|GEN_AFTER)")
+_dat = re.compile(r"^(export|python aidetect/(00_download|12_|15_human|14_audit|01_prep|02_tokenize|16_human_news|16_build_humanizer|17_human|17_build|21_)|MODELS=|VER=|GEN_AFTER|# the four Claude)")
 _demo = re.compile(r"^python aidetect/(predict|09_report)")
 _box = lambda lines: "<pre>\n" + "\n".join(lines) + "\n</pre>"
 _repo = "Code is in this repository (<code>aidetect/</code>); data root <code>/data18/voyage_4_5_experiments/data/aidetect</code>; python env <code>~/voyage-4.5/.venv-aid</code>."
