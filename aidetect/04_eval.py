@@ -16,8 +16,8 @@ from sklearn.metrics import roc_auc_score, f1_score
 sys.path.insert(0, os.path.dirname(__file__))
 D = os.path.join(os.environ["V45_DATA_ROOT"], "data/aidetect")
 DOC_SETS = ["mage_squad_test", "raid_id", "raid_unseen_model", "raid_unseen_domain", "raid_unseen_attack", "raid_unseen_all", "raid_attacks",
-            "textsight_2026", "wasit_2026", "spans_test", "gen_id", "gen_unseen_gen", "gen_unseen_domain", "gen_mixed", "gen_humanized", "gen_edit", "gen_newgen", "opai_doc", "gen_block"]
-WORD_SETS = ["spans_test", "raid_splice", "gen_mixed", "gen_edit", "gen_humanized", "opai_spans", "gen_block"]
+            "textsight_2026", "wasit_2026", "spans_test", "gen_id", "gen_unseen_gen", "gen_unseen_domain", "gen_mixed", "gen_humanized", "gen_edit", "gen_newgen", "opai_doc", "gen_block", "fmt_pure", "frontier_ai"]
+WORD_SETS = ["spans_test", "raid_splice", "gen_mixed", "gen_edit", "gen_humanized", "opai_spans", "gen_block", "mix_ai_heavy", "mix_human_heavy", "mix_mid", "mix_word", "mix_cross", "frontier_mix"]
 
 
 def tpr_at_fpr(y, s, fpr):
@@ -74,6 +74,9 @@ def word_metrics(df, preds):
              mean_doc_word_auroc=100 * float(np.mean(mixed_auc)) if mixed_auc else float("nan"),
              boundary_mae_words=float(np.mean(maes)), boundary_median_ae=float(np.median(maes)),
              boundary_within5=100 * float((np.array(maes) <= 5).mean()))
+    hm = y == 0   # heat map separation: how far apart the two classes of words sit (saturation shows as high P(AI) on human words in AI-heavy text and the reverse)
+    r.update(mean_p_human_words=100 * float(p[hm].mean()) if hm.any() else float("nan"), mean_p_ai_words=100 * float(p[~hm].mean()) if (~hm).any() else float("nan"),
+             human_word_fp05=100 * float((p[hm] > 0.5).mean()) if hm.any() else float("nan"), ai_word_recall05=100 * float((p[~hm] > 0.5).mean()) if (~hm).any() else float("nan"))
     return r
 
 

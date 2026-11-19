@@ -1,5 +1,5 @@
 {
- "version": "0e0ae478a7a5",
+ "version": "2d9f1e34d1a4",
  "total_bytes": 347182967,
  "parts": [
   {
@@ -20,22 +20,22 @@
   {
    "name": "detector.onnx.part003",
    "bytes": 50331648,
-   "sha256": "d3cb44ae0564d5193748f83beb1529d5f7af5ed578bff2b97a36a7ceb98112f8"
+   "sha256": "d32ac66d9c8779d1ee38b2d71f622508a7b3642149bbf48667178c527dd3207a"
   },
   {
    "name": "detector.onnx.part004",
    "bytes": 50331648,
-   "sha256": "38b567ce7eb4b7b4c5bc00d042cc61cd071ab14ea49f5defe8a7536512621bde"
+   "sha256": "68dbe2c022118f3b80f4970770755af9e8b378b480c4aca3447816b3f15e60ec"
   },
   {
    "name": "detector.onnx.part005",
    "bytes": 50331648,
-   "sha256": "0311a833c36df6b6dc844738014fb72868cdd6dd4880d8a84e9466b7b165924d"
+   "sha256": "5743680a127143a5c4f38a07b1328a2ada7ad6ba2e3c435550c62ee34d97e31d"
   },
   {
    "name": "detector.onnx.part006",
    "bytes": 45193079,
-   "sha256": "50c48029003911be71f856082f693c94eea5b09db3e9fac624930e12e9b4f0f7"
+   "sha256": "c56d4ba071e673d140a3d99489ed17cbc3e252f5a4a71acf23fde1ba8fdad8ba"
   }
  ],
  "tokenizer": "tokenizer.json",

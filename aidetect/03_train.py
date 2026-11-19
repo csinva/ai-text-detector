@@ -3,7 +3,7 @@
 
 Packed variable-length sequences (flash-attn varlen, no padding), fixed token budget per micro-batch so torch.compile
 sees static shapes, bf16 autocast over fp32 master weights, fused AdamW. Logs tokens/s and MFU every step.
-Loss = BCE(token logit, soft token label) + BCE(document logit, mean label of the crop).
+Loss = BCE(token logit, soft token label) + BCE(document logit, mean label of the crop); optional heat map terms (--minority, --w_bnd, --w_sep) act on mixed documents only.
 """
 import argparse, json, math, os, sys, time
 import numpy as np, torch, torch.nn.functional as F
@@ -61,13 +61,37 @@ def flops_of(b, cfg, n_mm):
     return 6 * n_mm * b["ntok"] + 12 * cfg.n_layers * cfg.n_heads * cfg.hd * b["sq"] * (0.5 if cfg.causal else 1.0)
 
 
-def losses(model, b, dev):
+def heat_terms(tok, y, v, seg, nseq, h):
+    """Heat map specific loss terms. In a mixed document (3% to 97% AI tokens) the plain token average lets the model push every token towards the document label, so:
+      minority weights: each class carries half of the document's token weight (weight 0.5 / class share, between 1 and min_cap),
+      boundary weights: tokens within bnd_k tokens of an AI/human switch count (1 + w_bnd) times,
+      separation margin: relu(sep_margin - (mean P(AI) on AI tokens - mean P(AI) on human tokens)) per mixed document, weight w_sep."""
+    yh = (y > 0.5).float() * v; n = torch.zeros(nseq, device=y.device).index_add_(0, seg, v); na = torch.zeros(nseq, device=y.device).index_add_(0, seg, yh)
+    fa = na / n.clamp(min=1); mixed = ((fa > 0.03) & (fa < 0.97)).float(); w = torch.ones_like(y)
+    if h["minority"]:
+        fs = fa[seg]; wm = torch.where(y > 0.5, 0.5 / fs.clamp(min=0.03), 0.5 / (1 - fs).clamp(min=0.03)).clamp(1.0, h["min_cap"]); w = torch.where(mixed[seg] > 0, wm, w)
+    if h["w_bnd"] > 0:
+        same = seg[1:] == seg[:-1]; flip = ((y[1:] > 0.5) != (y[:-1] > 0.5)) & same; bd = torch.zeros_like(y); bd[1:] += flip.float(); bd[:-1] += flip.float()
+        bd = F.max_pool1d((bd > 0).float()[None, None], kernel_size=2 * h["bnd_k"] + 1, stride=1, padding=h["bnd_k"])[0, 0]; w = w * (1 + h["w_bnd"] * bd * mixed[seg])
+    ls = tok.new_zeros(())
+    if h["w_sep"] > 0:
+        p = torch.sigmoid(tok.float()); hum = (1 - (y > 0.5).float()) * v
+        ma = torch.zeros(nseq, device=y.device).index_add_(0, seg, p * yh) / na.clamp(min=1); nh = torch.zeros(nseq, device=y.device).index_add_(0, seg, hum)
+        mh = torch.zeros(nseq, device=y.device).index_add_(0, seg, p * hum) / nh.clamp(min=1)
+        ok = mixed * (na >= 4).float() * (nh >= 4).float(); ls = (F.relu(h["sep_margin"] - (ma - mh)) * ok).sum() / ok.sum().clamp(min=1)
+    return w, ls
+
+
+def losses(model, b, dev, heat=None):
     tok, doc = model(b["ids"].to(dev, non_blocking=True), b["pos"].to(dev, non_blocking=True), b["cu"].to(dev), b["seg"].to(dev, non_blocking=True), b["max_s"], b["nseq"])
     y, v = b["y"].to(dev, non_blocking=True), b["valid"].to(dev, non_blocking=True)
-    lt = (F.binary_cross_entropy_with_logits(tok, y, reduction="none") * v).sum() / v.sum().clamp(min=1)
+    bce = F.binary_cross_entropy_with_logits(tok, y, reduction="none"); ls = tok.new_zeros(())
+    if heat:
+        w, ls = heat_terms(tok, y, v, b["seg"].to(dev, non_blocking=True), b["nseq"], heat); bce = bce * w
+    lt = (bce * v).sum() / v.sum().clamp(min=1)
     yd = b["ydoc"].to(dev)[: b["nreal"]]
     ld = F.binary_cross_entropy_with_logits(doc[: b["nreal"]], yd)
-    return lt, ld, tok, doc, y, v
+    return lt, ld, tok, doc, y, v, ls
 
 
 @torch.no_grad()
@@ -79,7 +103,7 @@ def dev_eval(model, dev, budget, max_len, n_batches=12, tok="tok"):
     for _ in range(n_batches):
         b = next(it)
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            a, c, tok, doc, y, v = losses(model, b, dev)
+            a, c, tok, doc, y, v, _ = losses(model, b, dev)
         lt += a.item(); ld += c.item()
         m = v.bool().cpu(); yt.append((y.cpu()[m] > 0.5).numpy()); pt.append(tok.float().cpu()[m].numpy())
         yd = b["ydoc"][: b["nreal"]].numpy(); k = (yd < 0.02) | (yd > 0.98)
@@ -109,6 +133,11 @@ def main():
     ap.add_argument("--compile", type=int, default=1)
     ap.add_argument("--w_spans", type=float, default=4.0)
     ap.add_argument("--w_splice", type=float, default=1.0)
+    ap.add_argument("--minority", type=int, default=0, help="heat map loss: class-balanced token weights inside mixed documents")
+    ap.add_argument("--min_cap", type=float, default=8.0); ap.add_argument("--w_bnd", type=float, default=0.0, help="extra weight of tokens near an AI/human switch")
+    ap.add_argument("--bnd_k", type=int, default=6); ap.add_argument("--w_sep", type=float, default=0.0, help="weight of the AI/human probability margin loss in mixed documents"); ap.add_argument("--sep_margin", type=float, default=0.85)
+    ap.add_argument("--w_mix", type=float, default=1.0, help="sampling weight of the explicit mixed documents (mix_*) and of the layout-augmented ones (fmt_*)")
+    ap.add_argument("--w_fr", type=float, default=1.0, help="sampling weight of the frontier-model documents (fr_ai, fr_human: Claude, DeepSeek-style and gpt-oss-120b texts and their matching human passages)")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--eval_every", type=int, default=250)
     ap.add_argument("--seed", type=int, default=0)
@@ -136,6 +165,7 @@ def main():
     if a.compile:
         for l in model.layers:
             l.pre_attn = torch.compile(l.pre_attn, mode=None if a.compile_mode == 'default' else a.compile_mode); l.post_attn = torch.compile(l.post_attn, mode=None if a.compile_mode == 'default' else a.compile_mode)
+    heat = dict(minority=a.minority, min_cap=a.min_cap, w_bnd=a.w_bnd, bnd_k=a.bnd_k, w_sep=a.w_sep, sep_margin=a.sep_margin) if (a.minority or a.w_bnd or a.w_sep) else None
     heads = [p for n, p in model.named_parameters() if "head" in n]
     dec = [p for n, p in model.named_parameters() if p.requires_grad and p.dim() == 2 and "head" not in n]
     nod = [p for n, p in model.named_parameters() if p.requires_grad and p.dim() < 2 and "head" not in n]
@@ -152,7 +182,7 @@ def main():
         print(f"continuing from weights {a.init_weights} at step {start} (fresh optimizer)", flush=True)
     steps = int(a.total_tokens // tok_per_step)
     if a.max_steps: steps = min(steps, a.max_steps)
-    loader = torch.utils.data.DataLoader(Stream("train", a.budget, a.max_len, a.p_short, {"spans": a.w_spans, "raid_splice": a.w_splice}, a.seed + 7919 * start, a.tok),
+    loader = torch.utils.data.DataLoader(Stream("train", a.budget, a.max_len, a.p_short, {"spans": a.w_spans, "raid_splice": a.w_splice, **{k: a.w_mix for k in ("mix_sent", "mix_block", "mix_para", "mix_word", "mix_cross", "fmt_human", "fmt_ai")}, "fr_ai": a.w_fr, "fr_human": a.w_fr}, a.seed + 7919 * start, a.tok),
                                          batch_size=None, num_workers=a.workers, prefetch_factor=6, pin_memory=True, persistent_workers=True)
     it = iter(loader)
     log = open(f"{out}/train_log.jsonl", "a")
@@ -162,14 +192,14 @@ def main():
         f = step / warm if step <= warm else 0.05 + 0.95 * 0.5 * (1 + math.cos(math.pi * (step - warm) / max(1, steps - warm)))
         if rewarm_from >= 0: f *= min(1.0, (step - rewarm_from) / 20)
         for g, b0 in zip(opt.param_groups, base): g["lr"] = b0 * f
-        torch.cuda.synchronize(); t0 = time.time(); fl = 0.0; tk = 0; ltt = ldd = 0.0; mbs = []
+        torch.cuda.synchronize(); t0 = time.time(); fl = 0.0; tk = 0; ltt = ldd = lss = 0.0; mbs = []
         for _ in range(a.accum):
             b = b_syn if (a.synthetic and step > 1) else next(it)
             b_syn = b; mbs.append(b)
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                lt, ld, *_ = losses(model, b, dev)
-            ((lt + ld) / a.accum).backward()
-            fl += flops_of(b, cfg, n_mm); tk += b["ntok"]; ltt += lt.detach(); ldd += ld.detach()
+                lt, ld, *rest = losses(model, b, dev, heat); ls = rest[-1]
+            ((lt + ld + a.w_sep * ls) / a.accum).backward()
+            fl += flops_of(b, cfg, n_mm); tk += b["ntok"]; ltt += lt.detach(); ldd += ld.detach(); lss += ls.detach()
         gn = torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
         if not torch.isfinite(gn):  # a non-finite step must not touch the weights: drop it and keep the batches for inspection
             n_skipped += 1; opt.zero_grad(set_to_none=True)
@@ -177,7 +207,7 @@ def main():
             log.write(json.dumps(dict(step=step, skipped=True)) + "\n"); continue
         opt.step(); opt.zero_grad(set_to_none=True)
         torch.cuda.synchronize(); dt = time.time() - t0
-        rec = dict(step=step, tokens=step * tok_per_step, loss_tok=float(ltt) / a.accum, loss_doc=float(ldd) / a.accum, gnorm=float(gn),
+        rec = dict(step=step, tokens=step * tok_per_step, loss_tok=float(ltt) / a.accum, loss_doc=float(ldd) / a.accum, loss_sep=float(lss) / a.accum, gnorm=float(gn),
                    lr=opt.param_groups[0]["lr"], step_s=dt, tok_s=tk / dt, mfu=fl / dt / PEAK)
         if step % a.eval_every == 0 or step == steps:
             rec.update(dev_eval(model, dev, a.budget, a.max_len, tok=a.tok))

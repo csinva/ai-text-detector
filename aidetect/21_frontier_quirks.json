@@ -1,0 +1,30 @@
+{
+  "source": "Brainstormed with the Fable model (2026-11-18) from its own knowledge, no tools; confidence moderate for Claude, GPT and Gemini, lower for Qwen3, Kimi K2, GLM, gpt-oss and Mistral. Treat as hypotheses to test, not facts.",
+  "tells": {
+    "claude": ["em dashes as the default parenthetical, several per paragraph", "candid openers and pivots: Honestly, / Here's the thing: / That said, / To be direct:", "contrastive reframes: it's not X; it's Y", "hedged epistemic stance: I think, my read is, genuinely", "plain prose in even mid-length paragraphs, each ending on a short summarising line; fiction with restrained endings and sensory detail in threes"],
+    "gpt_oss": ["heavy scaffolding: headers, bold lead-in labels, nested bullets, tables", "closing offers: If you want, I can also... / Would you like me to...", "punchy fragments: Short answer: yes. / Bottom line:", "GPT-5.x terser with arrows and telegraphic bullets; gpt-oss adds policy-flavoured phrasing", "casual register reads as forced: Got it! / Great question"],
+    "gemini": ["restates the task first: Of course. Here is a... / Here's a breakdown of...", "long exhaustive numbered sections, bold terms with colons, closing summary section", "analogy-led explanation: Think of it like...", "formal tutorial tone: crucial, essentially, fundamentally"],
+    "deepseek_qwen_kimi_glm": ["dense markdown: ### headers, bolded numbered steps, horizontal rules, final Summary or Conclusion block", "R1: vivid metaphor-heavy prose, reasoning leakage (Hmm, / Okay, the user wants...)", "translated-Chinese constructions: In summary, / It should be noted that, four-item parallel lists", "formulaic closers: Hope this helps! / Let me know if you need further clarification"],
+    "mistral": ["flatter, shorter, less stylised; generic transitions (Additionally, Furthermore); few distinctive tells"]
+  },
+  "persistent": ["rule of three", "uniform paragraph length", "every paragraph ends on a summarising line", "balanced on one hand / on the other", "no typos, perfectly consistent punctuation", "signposting (Let's break this down)", "hedges on every claim", "generic rather than idiosyncratic specifics", "tidy conclusions"],
+  "dropped": ["delve", "tapestry", "testament to", "in today's fast-paced world", "navigate the complexities", "As an AI language model", "uniformly medium sentence length"],
+  "human_lookalikes": ["pre-2017 scientific abstracts", "legal and contract text", "press releases and marketing", "Wikipedia leads, textbooks, documentation, grant proposals", "machine-translated or professionally translated text", "non-native academic English (Moreover, It is worth noting)", "heavily copy-edited journalism", "em-dash-heavy essayists and older literary prose", "Grammarly-cleaned student essays, SEO listicles written by people"],
+  "mixed_text": ["human-edited model draft: the AI skeleton survives (section order, triads, tidy closer) with local human patches: a concrete name, number or anecdote, a register break, an inserted typo, em dashes swapped for commas", "model-polished human draft: human content and odd argument order survive, surface smoothed: even sentence lengths, added transitions at paragraph starts, safer synonyms, an appended summary sentence", "the signal is usually at paragraph boundaries"],
+  "quirk_instructions": [
+    "Use an em dash as a parenthetical in at least every other paragraph.",
+    "Use a contrastive reframe such as \"it is not X, it is Y\" at least twice.",
+    "Open with a candid marker such as \"Honestly,\" or \"Here's the thing:\".",
+    "End every paragraph with a short sentence that restates its point.",
+    "Group examples and adjectives in threes throughout.",
+    "Start with \"Of course. Here is\" and restate the request before answering.",
+    "Put a bold label followed by a colon at the start of each bullet.",
+    "Add \"###\" headers and a horizontal rule between every section.",
+    "Close with an offer: \"If you want, I can also...\".",
+    "Insert fragment lead-ins such as \"Short answer:\" and \"Bottom line:\".",
+    "Explain the main idea through an analogy introduced by \"Think of it like\".",
+    "Hedge each claim with \"I think\", \"likely\" or \"it's worth noting\".",
+    "Finish with a \"Summary\" block that repeats the main points as bullets.",
+    "Write in ornate metaphor, comparing each abstract idea to a physical object."
+  ]
+}
